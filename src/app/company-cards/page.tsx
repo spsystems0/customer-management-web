@@ -237,15 +237,23 @@ export default function CompanyCardsPage() {
                   {contacts.length === 0 ? (
                     <p className="mt-4 text-black">등록된 담당자가 없습니다.</p>
                   ) : (
+
                     <div className="mt-4 overflow-x-auto">
-                      <table className="min-w-full border border-slate-300 text-sm text-black">
+                      <table className="min-w-full table-fixed border border-slate-300 text-sm text-black">
+                        <colgroup>
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '16%' }} />
+                          <col style={{ width: '18%' }} />
+                          <col style={{ width: '46%' }} />
+                        </colgroup>
                         <thead className="bg-slate-100">
                           <tr>
                             <th className="border px-3 py-2">이름</th>
                             <th className="border px-3 py-2">직급</th>
                             <th className="border px-3 py-2">연락처</th>
                             <th className="border px-3 py-2">이메일</th>
-                            <th className="border px-3 py-2">주요역할</th>
+                            <th className="border px-3 py-2">주 요  역 할</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -271,13 +279,19 @@ export default function CompanyCardsPage() {
                     <p className="mt-4 text-black">등록된 방문이력이 없습니다.</p>
                   ) : (
                     <div className="mt-4 overflow-x-auto">
-                      <table className="min-w-full border border-slate-300 text-sm text-black">
+                      <table className="min-w-full table-fixed border border-slate-300 text-sm text-black">
+                        <colgroup>
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '16%' }} />
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '60%' }} />
+                        </colgroup>
                         <thead className="bg-slate-100">
                           <tr>
                             <th className="border px-3 py-2">방문일자</th>
                             <th className="border px-3 py-2">목적</th>
                             <th className="border px-3 py-2">방문자</th>
-                            <th className="border px-3 py-2">주요내용</th>
+                            <th className="border px-3 py-2">주 요  내 용</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -285,9 +299,7 @@ export default function CompanyCardsPage() {
                             <tr key={log.id}>
                               <td className="border px-3 py-2">{log.visit_date || ''}</td>
                               <td className="border px-3 py-2">{log.purpose || ''}</td>
-                              <td className="border px-3 py-2">
-                                {selectedCompany.sales_owner || ''}
-                              </td>
+                              <td className="border px-3 py-2">{log.visitor_name || ''}</td>
                               <td className="border px-3 py-2">{log.discussion || ''}</td>
                             </tr>
                           ))}
@@ -377,11 +389,11 @@ export default function CompanyCardsPage() {
                   <div className="print-section-title">담당자 정보</div>
                   <table className="print-contact-table">
                     <colgroup>
-                      <col style={{ width: '8%' }} />
-                      <col style={{ width: '20%' }} />
-                      <col style={{ width: '8%' }} />
-                      <col style={{ width: '15%' }} />
-                      <col style={{ width: '49%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '24%' }} />
+                      <col style={{ width: '40%' }} />
                     </colgroup>
                     <thead>
                       <tr>
@@ -418,10 +430,10 @@ export default function CompanyCardsPage() {
                   <div className="print-section-title">방문 이력</div>
                   <table className="print-visit-table">
                     <colgroup>
-                      <col style={{ width: '18%' }} />
-                      <col style={{ width: '24%' }} />
                       <col style={{ width: '15%' }} />
-                      <col style={{ width: '43%' }} />
+                      <col style={{ width: '30%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '65%' }} />
                     </colgroup>
                     <thead>
                       <tr>
