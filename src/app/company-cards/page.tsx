@@ -389,7 +389,7 @@ export default function CompanyCardsPage() {
                         <th className="print-subhead">직급</th>
                         <th className="print-subhead">연락처</th>
                         <th className="print-subhead">이메일</th>
-                        <th className="print-subhead">주요역할</th>
+                        <th className="print-subhead">주요 역할</th>
                       </tr>
                     </thead>
                     <tbody>
