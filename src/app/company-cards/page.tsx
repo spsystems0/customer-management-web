@@ -40,6 +40,18 @@ type VisitLog = {
   visitor_name: string | null
 }
 
+function formatYearMonth(dateValue: string | null) {
+  if (!dateValue) return ''
+
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+
+  return `${year}년 ${month}월`
+}
+
 export default function CompanyCardsPage() {
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('guest')
   const [companies, setCompanies] = useState<Company[]>([])
@@ -224,6 +236,7 @@ export default function CompanyCardsPage() {
                       }
                     />
                     <InfoItem label="주소" value={selectedCompany.address} />
+                    <InfoItem label="거래시작연도" value={formatYearMonth(selectedCompany.transaction_start_date)} />
                     <InfoItem label="영업담당" value={selectedCompany.sales_owner} />
                     <InfoItem label="홈페이지" value={selectedCompany.homepage} />
                     <InfoItem label="주력 제품" value={selectedCompany.main_product} />
@@ -317,74 +330,74 @@ export default function CompanyCardsPage() {
                 <div className="print-sheet">
                   <div className="print-title">고객사 관리 카드</div>
 
-                  <table className="print-main-table">
-                    <colgroup>
-                      <col style={{ width: '13%' }} />
-                      <col style={{ width: '39%' }} />
-                      <col style={{ width: '13%' }} />
-                      <col style={{ width: '35%' }} />
-                    </colgroup>
-                    <tbody>
-                      <tr>
-                        <th className="print-label">고객분류코드</th>
-                        <td className="print-value">
-                          {selectedCompany.customer_category_code || ''}
-                        </td>
-                        <th className="print-label">고객사명</th>
-                        <td className="print-value">
-                          {selectedCompany.customer_name || ''}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th className="print-label">사업자번호</th>
-                        <td className="print-value">
-                          {selectedCompany.business_number || ''}
-                        </td>
-                        <th className="print-label">업종</th>
-                        <td className="print-value">
-                          {selectedCompany.industry || ''}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th className="print-label">매출금액</th>
-                        <td className="print-value">{selectedCompany.revenue || ''}</td>
-                        <th className="print-label">직원 수</th>
-                        <td className="print-value">
-                          {selectedCompany.employee_count !== null
-                            ? String(selectedCompany.employee_count)
-                            : ''}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th className="print-label">주소</th>
-                        <td className="print-value" colSpan={3}>
-                          {selectedCompany.address || ''}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th className="print-label">홈페이지</th>
-                        <td className="print-value">
-                          {selectedCompany.homepage || ''}
-                        </td>
-                        <th className="print-label">영업담당</th>
-                        <td className="print-value">
-                          {selectedCompany.sales_owner || ''}
-                        </td>
-                      </tr>
-                      <tr className="print-row-lg">
-                        <th className="print-label">주력 제품</th>
-                        <td className="print-value" colSpan={3}>
-                          {selectedCompany.main_product || ''}
-                        </td>
-                      </tr>
-                      <tr className="print-row-lg">
-                        <th className="print-label">기 타</th>
-                        <td className="print-value" colSpan={3}>
-                          {selectedCompany.note || ''}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                    <table className="print-main-table">
+                      <colgroup>
+                        <col style={{ width: '13%' }} />
+                        <col style={{ width: '39%' }} />
+                        <col style={{ width: '13%' }} />
+                        <col style={{ width: '35%' }} />
+                      </colgroup>
+                      <tbody>
+                        <tr>
+                          <th className="print-label">고객분류코드</th>
+                          <td className="print-value">{selectedCompany.customer_category_code || ''}</td>
+                          <th className="print-label">고객사명</th>
+                          <td className="print-value">{selectedCompany.customer_name || ''}</td>
+                        </tr>
+                        <tr>
+                          <th className="print-label">사업자번호</th>
+                          <td className="print-value">{selectedCompany.business_number || ''}</td>
+                          <th className="print-label">업종</th>
+                          <td className="print-value">{selectedCompany.industry || ''}</td>
+                        </tr>
+                        <tr>
+                          <th className="print-label">매출금액</th>
+                          <td className="print-value">{selectedCompany.revenue || ''}</td>
+                          <th className="print-label">직원 수</th>
+                          <td className="print-value">
+                            {selectedCompany.employee_count !== null
+                              ? String(selectedCompany.employee_count)
+                              : ''}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th className="print-label">주소</th>
+                          <td className="print-value" colSpan={3}>
+                            {selectedCompany.address || ''}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th className="print-label">거래시작연도</th>
+                          <td className="print-value">
+                            {formatYearMonth(selectedCompany.transaction_start_date)}
+                          </td>
+                          <th className="print-label">영업담당</th>
+                          <td className="print-value">
+                            {selectedCompany.sales_owner || ''}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th className="print-label">홈페이지</th>
+                          <td className="print-value" colSpan={3}>
+                            {selectedCompany.homepage || ''}
+                          </td>
+                        </tr>
+                        <tr className="print-row-lg">
+                          <th className="print-label">주력 제품</th>
+                          <td className="print-value" colSpan={3}>
+                            {selectedCompany.main_product || ''}
+                          </td>
+                        </tr>
+                        <tr className="print-row-lg">
+                          <th className="print-label">기 타</th>
+                          <td className="print-value" colSpan={3}>
+                            {selectedCompany.note || ''}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+
 
                   <div className="print-section-title">담당자 정보</div>
                   <table className="print-contact-table">
