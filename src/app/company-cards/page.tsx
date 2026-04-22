@@ -377,11 +377,11 @@ export default function CompanyCardsPage() {
                   <div className="print-section-title">담당자 정보</div>
                   <table className="print-contact-table">
                     <colgroup>
-                      <col style={{ width: '13%' }} />
-                      <col style={{ width: '25%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '20%' }} />
+                      <col style={{ width: '8%' }} />
                       <col style={{ width: '15%' }} />
-                      <col style={{ width: '23%' }} />
-                      <col style={{ width: '24%' }} />
+                      <col style={{ width: '49%' }} />
                     </colgroup>
                     <thead>
                       <tr>
