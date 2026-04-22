@@ -63,7 +63,7 @@ export default function Sidebar({ mode }: SidebarProps) {
             href="/customer-cards"
             className="block w-full rounded-xl bg-emerald-50 px-4 py-4 font-medium text-emerald-900 transition hover:bg-emerald-100"
           >
-            고객관리카드 조회
+            고객관리카드 조회a
           </a>
 
           <a
