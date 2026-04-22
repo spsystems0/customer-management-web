@@ -101,13 +101,16 @@ export default function CompanyCardsPage() {
 
     setSelectedCompany(company)
 
+
     const { data: contactsData, error: contactsError } = await supabase
       .from('contacts')
-      .select('id, name, department, position, phone, email, main_role')
+      .select('id, name, department, position, phone, email, main_role, print_order')
       .eq('company_id', Number(selectedCompanyId))
+      .order('print_order', { ascending: true })
       .order('name', { ascending: true })
 
-    if (contactsError) {
+
+      if (contactsError) {
       setMessage(`담당자 조회 실패: ${contactsError.message}`)
       return
     }
