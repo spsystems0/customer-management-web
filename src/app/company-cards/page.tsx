@@ -450,12 +450,12 @@ export default function CompanyCardsPage() {
 
                   <table className="print-main-table">
                     <colgroup>
-                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '15%' }} />
                       <col style={{ width: '26%' }} />
                       <col style={{ width: '13%' }} />
                       <col style={{ width: '13%' }} />
                       <col style={{ width: '13%' }} />
-                      <col style={{ width: '25%' }} />
+                      <col style={{ width: '20%' }} />
                     </colgroup>
                     <tbody>
                       <tr>
