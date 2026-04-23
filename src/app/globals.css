@@ -124,6 +124,11 @@ select:-webkit-autofill {
 
 /* ===== 출력용 스타일 ===== */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 3mm;
+  }
+
   aside,
   .print-hide {
     display: none !important;
@@ -132,17 +137,21 @@ select:-webkit-autofill {
   html,
   body {
     background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   main,
   section,
   .print-area {
     background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .print-area {
-    width: 100% !important;
-    max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
   }
@@ -159,6 +168,7 @@ select:-webkit-autofill {
     color: #000000 !important;
   }
 }
+
 /* =========================
    고객사 관리 카드 출력 전용
 ========================= */
@@ -169,7 +179,8 @@ select:-webkit-autofill {
 
 @media print {
   aside,
-  .print-hide {
+  .print-hide,
+  .screen-report-wrap {
     display: none !important;
   }
 
@@ -182,16 +193,24 @@ select:-webkit-autofill {
 
   .print-company-card {
     display: block !important;
-    width: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     color: #000;
     font-family: Arial, "Malgun Gothic", sans-serif;
     font-size: 12px;
+    background: white !important;
   }
 
   .print-sheet {
-    width: 100%;
-    margin: 0;
-    padding: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 1mm 1.5mm !important;
+    box-sizing: border-box;
   }
 
   /* ① */
@@ -201,7 +220,7 @@ select:-webkit-autofill {
     text-align: center;
     font-weight: 700;
     font-size: 20px;
-    padding: 8px 0;
+    padding: 6px 0;
     border: 1px solid #7f7f7f;
     border-bottom: none;
   }
@@ -213,7 +232,7 @@ select:-webkit-autofill {
     text-align: center;
     font-weight: 700;
     font-size: 16px;
-    padding: 4px 0;
+    padding: 3px 0;
     border: 1px solid #7f7f7f;
     border-top: none;
   }
@@ -224,6 +243,7 @@ select:-webkit-autofill {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
+    margin: 0 !important;
   }
 
   .print-main-table th,
@@ -233,10 +253,11 @@ select:-webkit-autofill {
   .print-visit-table th,
   .print-visit-table td {
     border: 1px solid #a6a6a6;
-    padding: 4px 6px;
+    padding: 3px 4px;
     color: #000 !important;
     vertical-align: middle;
     word-break: break-word;
+    line-height: 1.25;
   }
 
   .print-label {
@@ -260,23 +281,19 @@ select:-webkit-autofill {
 
   .print-row-lg td,
   .print-row-lg th {
-    height: 56px;
+    height: 48px;
     vertical-align: top;
   }
 
   .print-row-xl td,
   .print-row-xl th {
-    height: 90px;
+    height: 72px;
     vertical-align: top;
   }
 
   .print-contact-table tbody tr td,
   .print-visit-table tbody tr td {
-    height: 24px;
-  }
-
-  .screen-report-wrap {
-    display: none !important;
+    height: 22px;
   }
 }
 
@@ -370,6 +387,7 @@ select:-webkit-autofill {
     vertical-align: top;
   }
 }
+
 .customer-print-visit-block-table {
   width: 100%;
   border-collapse: collapse;
@@ -388,26 +406,4 @@ select:-webkit-autofill {
 .customer-print-multiline {
   white-space: pre-wrap;
   line-height: 1.6;
-}
-
-@media print {
-  .customer-print-visit-block-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-  }
-
-  .customer-print-visit-block-table th,
-  .customer-print-visit-block-table td {
-    border: 1px solid #222;
-    padding: 4px 6px;
-    color: #000 !important;
-    vertical-align: top;
-    word-break: break-word;
-  }
-
-  .customer-print-multiline {
-    white-space: pre-wrap;
-    line-height: 1.6;
-  }
 }

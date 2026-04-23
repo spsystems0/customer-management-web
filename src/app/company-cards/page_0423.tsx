@@ -546,111 +546,71 @@ export default function CompanyCardsPage() {
 
                   <table className="print-visit-table">
                     <colgroup>
-                      <col style={{ width: '16%' }} />
-                      <col style={{ width: '84%' }} />
+                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '61%' }} />
                     </colgroup>
-
+                    <thead>
+                      <tr>
+                        <th rowSpan={2} className="print-subhead">
+                          방문일자
+                        </th>
+                        <th className="print-subhead">담당자</th>
+                        <th className="print-subhead">방문자</th>
+                        <th className="print-subhead">주요내용</th>
+                      </tr>
+                      <tr>
+                        <th colSpan={2} className="print-subhead">
+                          목적
+                        </th>
+                        <th className="print-subhead">후속조치</th>
+                      </tr>
+                    </thead>
                     <tbody>
                       {visitLogs.length > 0 ? (
                         visitLogs.map((log) => (
-                          <tr key={log.id}>
-                            <td className="align-top whitespace-pre-wrap text-center">
-                              {log.visit_date || ''}
-                            </td>
-
-                            <td className="p-0">
-                              <table className="w-full border-collapse table-fixed text-sm">
-                                <colgroup>
-                                  <col style={{ width: '18%' }} />
-                                  <col style={{ width: '18%' }} />
-                                  <col style={{ width: '64%' }} />
-                                </colgroup>
-                                <tbody>
-                                  <tr>
-                                    <th className="print-subhead">담당자</th>
-                                    <th className="print-subhead">방문자</th>
-                                    <th className="print-subhead">목적</th>
-                                  </tr>
-                                  <tr>
-                                    <td className="align-top whitespace-pre-wrap">
-                                      {log.contact_name || ''}
-                                    </td>
-                                    <td className="align-top whitespace-pre-wrap">
-                                      {log.visitor_name || ''}
-                                    </td>
-                                    <td className="align-top whitespace-pre-wrap">
-                                      {log.purpose || ''}
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td colSpan={3} className="print-subhead text-left">
-                                      (주요내용)
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td colSpan={3} className="align-top whitespace-pre-wrap">
-                                      {log.discussion || ''}
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td colSpan={3} className="print-subhead text-left">
-                                      (후속조치)
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td colSpan={3} className="align-top whitespace-pre-wrap">
-                                      {log.follow_up_action || ''}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </td>
-                          </tr>
+                          <Fragment key={log.id}>
+                            <tr>
+                              <td rowSpan={2} className="align-top whitespace-pre-wrap">
+                                {log.visit_date || ''}
+                              </td>
+                              <td className="align-top whitespace-pre-wrap">
+                                {log.contact_name || ''}
+                              </td>
+                              <td className="align-top whitespace-pre-wrap">
+                                {log.visitor_name || ''}
+                              </td>
+                              <td className="align-top whitespace-pre-wrap">
+                                {log.discussion || ''}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td colSpan={2} className="align-top whitespace-pre-wrap">
+                                {log.purpose || ''}
+                              </td>
+                              <td className="align-top whitespace-pre-wrap">
+                                {log.follow_up_action || ''}
+                              </td>
+                            </tr>
+                          </Fragment>
                         ))
                       ) : (
-                        <tr>
-                          <td className="text-center"></td>
-                          <td className="p-0">
-                            <table className="w-full border-collapse table-fixed text-sm">
-                              <colgroup>
-                                <col style={{ width: '18%' }} />
-                                <col style={{ width: '18%' }} />
-                                <col style={{ width: '64%' }} />
-                              </colgroup>
-                              <tbody>
-                                <tr>
-                                  <th className="print-subhead">담당자</th>
-                                  <th className="print-subhead">방문자</th>
-                                  <th className="print-subhead">목적</th>
-                                </tr>
-                                <tr>
-                                  <td></td>
-                                  <td></td>
-                                  <td></td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={3} className="print-subhead text-left">
-                                    (주요내용)
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={3} className="h-16"></td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={3} className="print-subhead text-left">
-                                    (후속조치)
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={3} className="h-12"></td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </td>
-                        </tr>
+                        <>
+                          <tr>
+                            <td rowSpan={2}></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                          </tr>
+                          <tr>
+                            <td colSpan={2}></td>
+                            <td></td>
+                          </tr>
+                        </>
                       )}
                     </tbody>
-                  </table>                  
+                  </table>
                 </div>
               </div>
             )}
