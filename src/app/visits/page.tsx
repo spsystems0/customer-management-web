@@ -14,38 +14,31 @@ type Contact = {
   name: string
 }
 
-type VisitLog = {
+type VisitOption = {
   id: number
-  company_id: number
-  contact_id: number | null
-  visitor_name: string | null
-  visit_date: string | null
-  purpose: string | null
-  discussion: string | null
-  follow_up_action: string | null
+  label: string
 }
 
 export default function VisitsPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [visitLogs, setVisitLogs] = useState<VisitLog[]>([])
+  const [visitOptions, setVisitOptions] = useState<VisitOption[]>([])
 
   const [loading, setLoading] = useState(true)
-  const [loadingContacts, setLoadingContacts] = useState(false)
-  const [loadingVisitLogs, setLoadingVisitLogs] = useState(false)
+  const [message, setMessage] = useState('')
 
-  const [selectedCompanyId, setSelectedCompanyId] = useState('')
+  const [selectedLoadCompanyId, setSelectedLoadCompanyId] = useState('')
   const [selectedVisitId, setSelectedVisitId] = useState('')
+
   const [editingId, setEditingId] = useState<number | null>(null)
 
-  const [companyId, setCompanyId] = useState('')
-  const [contactId, setContactId] = useState('')
+  const [selectedCompanyId, setSelectedCompanyId] = useState('')
+  const [selectedContactId, setSelectedContactId] = useState('')
   const [visitorName, setVisitorName] = useState('')
   const [visitDate, setVisitDate] = useState('')
   const [purpose, setPurpose] = useState('')
   const [discussion, setDiscussion] = useState('')
   const [followUpAction, setFollowUpAction] = useState('')
-  const [message, setMessage] = useState('')
 
   useEffect(() => {
     const initialize = async () => {
@@ -55,7 +48,7 @@ export default function VisitsPage() {
       } = await supabase.auth.getSession()
 
       if (sessionError || !session) {
-        window.location.href = '/'
+        window.location.href = '/login'
         return
       }
 
@@ -78,108 +71,154 @@ export default function VisitsPage() {
   }, [])
 
   useEffect(() => {
-    const loadContactsAndVisits = async () => {
-      setSelectedVisitId('')
-      setVisitLogs([])
+    const fetchContactsByCompany = async () => {
       setContacts([])
+      setSelectedContactId('')
 
-      if (!selectedCompanyId) {
-        return
-      }
+      if (!selectedCompanyId) return
 
-      setLoadingContacts(true)
-      setLoadingVisitLogs(true)
-
-      const { data: contactData, error: contactError } = await supabase
+      const { data, error } = await supabase
         .from('contacts')
         .select('id, name')
         .eq('company_id', Number(selectedCompanyId))
+        .order('print_order', { ascending: true })
         .order('name', { ascending: true })
 
-      if (contactError) {
-        setMessage(`담당자 목록 조회 실패: ${contactError.message}`)
-      } else {
-        setContacts(contactData || [])
+      if (error) {
+        setMessage(`담당자 목록 조회 실패: ${error.message}`)
+        return
       }
 
-      setLoadingContacts(false)
-
-      const { data: visitData, error: visitError } = await supabase
-        .from('visit_logs')
-        .select(
-          'id, company_id, contact_id, visitor_name, visit_date, purpose, discussion, follow_up_action'
-        )
-        .eq('company_id', Number(selectedCompanyId))
-        .order('visit_date', { ascending: false })
-
-      if (visitError) {
-        setMessage(`방문일지 목록 조회 실패: ${visitError.message}`)
-      } else {
-        setVisitLogs(visitData || [])
-      }
-
-      setLoadingVisitLogs(false)
+      setContacts(data || [])
     }
 
-    loadContactsAndVisits()
+    fetchContactsByCompany()
   }, [selectedCompanyId])
 
+  useEffect(() => {
+    const fetchVisitOptions = async () => {
+      setVisitOptions([])
+      setSelectedVisitId('')
+
+      if (!selectedLoadCompanyId) return
+
+      const { data, error } = await supabase
+        .from('visit_logs')
+        .select('id, visit_date, purpose')
+        .eq('company_id', Number(selectedLoadCompanyId))
+        .order('visit_date', { ascending: false })
+        .order('id', { ascending: false })
+
+      if (error) {
+        setMessage(`방문일지 목록 조회 실패: ${error.message}`)
+        return
+      }
+
+      const formatted: VisitOption[] = (data || []).map((item) => ({
+        id: item.id,
+        label: `${item.visit_date || ''} / ${item.purpose || '방문일지'}`,
+      }))
+
+      setVisitOptions(formatted)
+    }
+
+    fetchVisitOptions()
+  }, [selectedLoadCompanyId])
+
   const resetForm = () => {
-    setSelectedCompanyId('')
-    setSelectedVisitId('')
     setEditingId(null)
-    setCompanyId('')
-    setContactId('')
+    setSelectedVisitId('')
+    setSelectedCompanyId('')
+    setSelectedContactId('')
     setVisitorName('')
     setVisitDate('')
     setPurpose('')
     setDiscussion('')
     setFollowUpAction('')
     setContacts([])
-    setVisitLogs([])
     setMessage('')
   }
 
-  const handleLoadVisit = () => {
+  const handleNewEntry = () => {
+    resetForm()
+    setSelectedCompanyId(selectedLoadCompanyId || '')
+  }
+
+  const handleLoadVisit = async () => {
     setMessage('')
 
+    if (!selectedLoadCompanyId) {
+      setMessage('고객사를 선택해 주세요.')
+      return
+    }
+
     if (!selectedVisitId) {
-      setMessage('불러올 방문일지를 선택해 주세요.')
+      setMessage('방문일지를 선택해 주세요.')
       return
     }
 
-    const visit = visitLogs.find(
-      (item) => String(item.id) === String(selectedVisitId)
-    )
+    const { data, error } = await supabase
+      .from('visit_logs')
+      .select(`
+        id,
+        company_id,
+        contact_id,
+        visitor_name,
+        visit_date,
+        purpose,
+        discussion,
+        follow_up_action
+      `)
+      .eq('id', Number(selectedVisitId))
+      .single()
 
-    if (!visit) {
-      setMessage('선택한 방문일지 정보를 찾을 수 없습니다.')
+    if (error || !data) {
+      setMessage(`방문일지 불러오기 실패: ${error?.message || '데이터 없음'}`)
       return
     }
 
-    setEditingId(visit.id)
-    setCompanyId(String(visit.company_id))
-    setContactId(visit.contact_id !== null ? String(visit.contact_id) : '')
-    setVisitorName(visit.visitor_name || '')
-    setVisitDate(visit.visit_date || '')
-    setPurpose(visit.purpose || '')
-    setDiscussion(visit.discussion || '')
-    setFollowUpAction(visit.follow_up_action || '')
-    setMessage('방문일지 정보를 불러왔습니다.')
+    setEditingId(data.id)
+    setSelectedCompanyId(String(data.company_id))
+    setVisitorName(data.visitor_name || '')
+    setVisitDate(data.visit_date || '')
+    setPurpose(data.purpose || '')
+    setDiscussion(data.discussion || '')
+    setFollowUpAction(data.follow_up_action || '')
+
+    const { data: contactData, error: contactError } = await supabase
+      .from('contacts')
+      .select('id, name')
+      .eq('company_id', Number(data.company_id))
+      .order('print_order', { ascending: true })
+      .order('name', { ascending: true })
+
+    if (contactError) {
+      setMessage(`담당자 목록 조회 실패: ${contactError.message}`)
+      return
+    }
+
+    setContacts(contactData || [])
+    setSelectedContactId(data.contact_id ? String(data.contact_id) : '')
+    setMessage('방문일지를 불러왔습니다.')
   }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setMessage('')
 
-    if (!companyId) {
+    if (!selectedCompanyId) {
       setMessage('고객사를 선택해 주세요.')
       return
     }
 
+    if (!visitDate) {
+      setMessage('방문일자를 입력해 주세요.')
+      return
+    }
+
     const payload = {
-      company_id: Number(companyId),
-      contact_id: contactId ? Number(contactId) : null,
+      company_id: Number(selectedCompanyId),
+      contact_id: selectedContactId ? Number(selectedContactId) : null,
       visitor_name: visitorName || null,
       visit_date: visitDate || null,
       purpose: purpose || null,
@@ -210,16 +249,21 @@ export default function VisitsPage() {
       setMessage('방문일지가 저장되었습니다.')
     }
 
-    if (selectedCompanyId) {
-      const { data } = await supabase
-        .from('visit_logs')
-        .select(
-          'id, company_id, contact_id, visitor_name, visit_date, purpose, discussion, follow_up_action'
-        )
-        .eq('company_id', Number(selectedCompanyId))
-        .order('visit_date', { ascending: false })
+    setSelectedLoadCompanyId(selectedCompanyId)
 
-      setVisitLogs(data || [])
+    const { data: visitData, error: visitError } = await supabase
+      .from('visit_logs')
+      .select('id, visit_date, purpose')
+      .eq('company_id', Number(selectedCompanyId))
+      .order('visit_date', { ascending: false })
+      .order('id', { ascending: false })
+
+    if (!visitError) {
+      const formatted: VisitOption[] = (visitData || []).map((item) => ({
+        id: item.id,
+        label: `${item.visit_date || ''} / ${item.purpose || '방문일지'}`,
+      }))
+      setVisitOptions(formatted)
     }
   }
 
@@ -244,29 +288,27 @@ export default function VisitsPage() {
       return
     }
 
-    setMessage('방문일지가 삭제되었습니다.')
+    const currentCompanyId = selectedCompanyId
 
-    if (selectedCompanyId) {
-      const { data } = await supabase
-        .from('visit_logs')
-        .select(
-          'id, company_id, contact_id, visitor_name, visit_date, purpose, discussion, follow_up_action'
-        )
-        .eq('company_id', Number(selectedCompanyId))
-        .order('visit_date', { ascending: false })
+    resetForm()
+    setSelectedLoadCompanyId(currentCompanyId)
 
-      setVisitLogs(data || [])
+    const { data: visitData, error: visitError } = await supabase
+      .from('visit_logs')
+      .select('id, visit_date, purpose')
+      .eq('company_id', Number(currentCompanyId))
+      .order('visit_date', { ascending: false })
+      .order('id', { ascending: false })
+
+    if (!visitError) {
+      const formatted: VisitOption[] = (visitData || []).map((item) => ({
+        id: item.id,
+        label: `${item.visit_date || ''} / ${item.purpose || '방문일지'}`,
+      }))
+      setVisitOptions(formatted)
     }
 
-    setEditingId(null)
-    setSelectedVisitId('')
-    setCompanyId('')
-    setContactId('')
-    setVisitorName('')
-    setVisitDate('')
-    setPurpose('')
-    setDiscussion('')
-    setFollowUpAction('')
+    setMessage('방문일지가 삭제되었습니다.')
   }
 
   if (loading) {
@@ -283,12 +325,13 @@ export default function VisitsPage() {
         <Sidebar mode="sales" />
 
         <section className="flex-1 px-6 py-10">
-          <div className="mx-auto max-w-6xl rounded-2xl bg-white p-8 shadow">
+          <div className="mx-auto max-w-7xl rounded-2xl bg-white p-8 shadow">
             <h1 className="text-2xl font-bold text-slate-800">
               방문일지 등록 / 수정 / 삭제
             </h1>
             <p className="mt-2 text-slate-600">
-              고객사와 방문일지를 선택해 기존 정보를 불러오거나 신규 등록할 수 있습니다.
+              고객사와 방문일지를 선택해 기존 정보를 불러오거나 신규 등록할 수
+              있습니다.
             </p>
 
             <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -298,8 +341,8 @@ export default function VisitsPage() {
 
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
                 <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
+                  value={selectedLoadCompanyId}
+                  onChange={(e) => setSelectedLoadCompanyId(e.target.value)}
                   className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
                 >
                   <option value="">고객사를 선택하세요</option>
@@ -314,18 +357,11 @@ export default function VisitsPage() {
                   value={selectedVisitId}
                   onChange={(e) => setSelectedVisitId(e.target.value)}
                   className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                  disabled={!selectedCompanyId || loadingVisitLogs}
                 >
-                  <option value="">
-                    {loadingVisitLogs
-                      ? '방문일지 불러오는 중...'
-                      : '방문일지를 선택하세요'}
-                  </option>
-                  {visitLogs.map((visit) => (
+                  <option value="">방문일지를 선택하세요</option>
+                  {visitOptions.map((visit) => (
                     <option key={visit.id} value={visit.id}>
-                      {(visit.visit_date || '날짜없음') +
-                        ' / ' +
-                        (visit.purpose || '목적없음')}
+                      {visit.label}
                     </option>
                   ))}
                 </select>
@@ -340,7 +376,7 @@ export default function VisitsPage() {
 
                 <button
                   type="button"
-                  onClick={resetForm}
+                  onClick={handleNewEntry}
                   className="rounded-xl bg-slate-500 px-6 py-3 font-medium text-white hover:bg-slate-600"
                 >
                   신규입력
@@ -348,73 +384,74 @@ export default function VisitsPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-8 grid gap-4 md:grid-cols-2">
-              <select
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                required
-              >
-                <option value="">고객사를 선택하세요 *</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.customer_name}
-                  </option>
-                ))}
-              </select>
+            <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <select
+                  value={selectedCompanyId}
+                  onChange={(e) => setSelectedCompanyId(e.target.value)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                >
+                  <option value="">고객사를 선택하세요</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.customer_name}
+                    </option>
+                  ))}
+                </select>
 
-              <select
-                value={contactId}
-                onChange={(e) => setContactId(e.target.value)}
-                className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-              >
-                <option value="">담당자를 선택하세요</option>
-                {contacts.map((contact) => (
-                  <option key={contact.id} value={contact.id}>
-                    {contact.name}
-                  </option>
-                ))}
-              </select>
+                <select
+                  value={selectedContactId}
+                  onChange={(e) => setSelectedContactId(e.target.value)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                >
+                  <option value="">담당자를 선택하세요</option>
+                  {contacts.map((contact) => (
+                    <option key={contact.id} value={contact.id}>
+                      {contact.name}
+                    </option>
+                  ))}
+                </select>
 
-              <input
-                value={visitorName}
-                onChange={(e) => setVisitorName(e.target.value)}
-                placeholder="방문자(영업담당자)"
-                className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
-              />
+                <input
+                  value={visitorName}
+                  onChange={(e) => setVisitorName(e.target.value)}
+                  placeholder="방문자(영업담당자)"
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
+                />
 
-              <input
-                type="date"
-                value={visitDate}
-                onChange={(e) => setVisitDate(e.target.value)}
-                className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-              />
+                <input
+                  type="date"
+                  value={visitDate}
+                  onChange={(e) => setVisitDate(e.target.value)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                />
+              </div>
 
               <input
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
                 placeholder="방문목적"
-                className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 md:col-span-2"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
               />
 
               <textarea
                 value={discussion}
                 onChange={(e) => setDiscussion(e.target.value)}
                 placeholder="상담내용"
-                className="min-h-[140px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 md:col-span-2"
+                className="min-h-[140px] w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
               />
 
               <textarea
                 value={followUpAction}
                 onChange={(e) => setFollowUpAction(e.target.value)}
                 placeholder="후속조치"
-                className="min-h-[140px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 md:col-span-2"
+                className="min-h-[140px] w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
               />
 
-              <div className="md:col-span-2 mt-4 flex gap-3">
+              <div className="flex flex-wrap gap-3 pt-2">
                 <button
                   type="submit"
-                  className="rounded-xl bg-amber-700 px-6 py-3 font-medium text-white hover:bg-amber-800"
+                  className="rounded-xl bg-blue-700 px-6 py-3 font-medium text-white hover:bg-blue-800"
                 >
                   {editingId ? '수정 저장' : '신규 저장'}
                 </button>
@@ -434,20 +471,10 @@ export default function VisitsPage() {
                 >
                   초기화
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.location.href = '/dashboard'
-                  }}
-                  className="rounded-xl bg-blue-700 px-6 py-3 font-medium text-white hover:bg-blue-800"
-                >
-                  대시보드로 이동
-                </button>
               </div>
 
               {message && (
-                <div className="md:col-span-2 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                <div className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
                   {message}
                 </div>
               )}

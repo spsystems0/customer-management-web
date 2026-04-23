@@ -272,12 +272,13 @@ select:-webkit-autofill {
     color: #000 !important;
   }
 
-  .print-subhead {
-    background: #dbeef3;
-    font-weight: 700;
-    text-align: center;
-    color: #000 !important;
-  }
+ .print-subhead-left {
+  background: #dbeef3;
+  font-weight: 700;
+  text-align: left !important;
+  color: #000 !important;
+  padding-left: 6px !important;
+}
 
   .print-row-lg td,
   .print-row-lg th {

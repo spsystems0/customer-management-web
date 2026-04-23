@@ -333,93 +333,112 @@ export default function CompanyCardsPage() {
                 <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-6">
                   <h3 className="text-lg font-bold text-black">방문 이력</h3>
 
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-full table-fixed border border-slate-300 text-sm text-black">
+                <div className="mt-4 space-y-4">
+                  {visitLogs.length > 0 ? (
+                    visitLogs.map((log) => (
+                      <table
+                        key={log.id}
+                        className="w-full table-fixed border-collapse border border-slate-300 text-sm text-black"
+                      >
+                        <colgroup>
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '88%' }} />
+                        </colgroup>
+
+                        <tbody>
+                          <tr>
+                            <td
+                              rowSpan={5}
+                              className="border border-slate-300 px-3 py-2 align-middle text-center whitespace-pre-wrap"
+                            >
+                              {log.visit_date || ''}
+                            </td>
+
+                            <td className="border border-slate-300 p-0">
+                              <table className="w-full table-fixed border-collapse text-sm text-black">
+                                <colgroup>
+                                  <col style={{ width: '14%' }} />
+                                  <col style={{ width: '14%' }} />
+                                  <col style={{ width: '72%' }} />
+                                </colgroup>
+                                <tbody>
+                                  <tr>
+                                    <th className="border-b border-slate-300 border-r px-3 py-2 bg-slate-100 text-center">
+                                      담당자
+                                    </th>
+                                    <th className="border-b border-slate-300 border-r px-3 py-2 bg-slate-100 text-center">
+                                      방문자
+                                    </th>
+                                    <th className="border-b border-slate-300 px-3 py-2 bg-slate-100 text-left">
+                                      목적
+                                    </th>
+                                  </tr>
+                                  <tr>
+                                    <td className="border-r border-slate-300 px-3 py-2 align-top whitespace-pre-wrap">
+                                      {log.contact_name || ''}
+                                    </td>
+                                    <td className="border-r border-slate-300 px-3 py-2 align-top whitespace-pre-wrap">
+                                      {log.visitor_name || ''}
+                                    </td>
+                                    <td className="px-3 py-2 align-top whitespace-pre-wrap">
+                                      {log.purpose || ''}
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td
+                                      colSpan={3}
+                                      className="border-t border-slate-300 px-3 py-2 bg-slate-100 text-left font-semibold"
+                                    >
+                                      (주요내용)
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td
+                                      colSpan={3}
+                                      className="border-t border-slate-300 px-3 py-2 align-top whitespace-pre-wrap"
+                                    >
+                                      {log.discussion || ''}
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td
+                                      colSpan={3}
+                                      className="border-t border-slate-300 px-3 py-2 bg-slate-100 text-left font-semibold"
+                                    >
+                                      (후속조치)
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td
+                                      colSpan={3}
+                                      className="border-t border-slate-300 px-3 py-2 align-top whitespace-pre-wrap"
+                                    >
+                                      {log.follow_up_action || ''}
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    ))
+                  ) : (
+                    <table className="w-full table-fixed border-collapse border border-slate-300 text-sm text-black">
                       <colgroup>
-                        <col style={{ width: '9%' }} />
-                        <col style={{ width: '9%' }} />
-                        <col style={{ width: '9%' }} />
-                        <col style={{ width: '9%' }} />
-                        <col style={{ width: '64%' }} />
+                        <col style={{ width: '12%' }} />
+                        <col style={{ width: '88%' }} />
                       </colgroup>
-                      <thead className="bg-slate-100">
-                        <tr>
-                          <th className="border px-3 py-2">방문일자</th>
-                          <th className="border px-3 py-2">담당자</th>
-                          <th className="border px-3 py-2">방문자</th>
-                          <th className="border px-3 py-2 p-0" colSpan={2}>
-                            <div className="grid grid-cols-[14%_14%_72%]">
-                              <div className="border-r border-slate-300 px-3 py-2">목적</div>
-                              <div className="border-r border-slate-300 px-3 py-2"></div>
-                              <div className="px-3 py-2">주요내용</div>
-                            </div>
-                            <div className="border-t border-slate-300 grid grid-cols-[28%_72%]">
-                              <div className="border-r border-slate-300 px-3 py-2"> </div>
-                              <div className="px-3 py-2">후속조치</div>
-                            </div>
-                          </th>
-                        </tr>
-                      </thead>
                       <tbody>
-                        {visitLogs.length > 0 ? (
-                          visitLogs.map((log) => (
-                            <Fragment key={log.id}>
-                              <tr>
-                                <td
-                                  rowSpan={2}
-                                  className="border px-3 py-2 align-top whitespace-pre-wrap"
-                                >
-                                  {log.visit_date || ''}
-                                </td>
-                                <td className="border px-3 py-2 align-top whitespace-pre-wrap">
-                                  {log.contact_name || ''}
-                                </td>
-                                <td
-                                  rowSpan={2}
-                                  className="border px-3 py-2 align-top whitespace-pre-wrap"
-                                >
-                                  {log.visitor_name || ''}
-                                </td>
-                                <td
-                                  colSpan={2}
-                                  className="border px-3 py-2 align-top whitespace-pre-wrap"
-                                >
-                                  {log.discussion || ''}
-                                </td>
-                              </tr>
-                              <tr>
-                                <td
-                                  colSpan={1}
-                                  className="border px-3 py-2 align-top whitespace-pre-wrap"
-                                >
-                                  {log.purpose || ''}
-                                </td>
-                                <td
-                                  colSpan={1}
-                                  className="border px-3 py-2 align-top whitespace-pre-wrap"
-                                >
-                                  {log.follow_up_action || ''}
-                                </td>
-                              </tr>
-                            </Fragment>
-                          ))
-                        ) : (
-                          <>
-                            <tr>
-                              <td rowSpan={2} className="border px-3 py-2 h-20"></td>
-                              <td className="border px-3 py-2"></td>
-                              <td rowSpan={2} className="border px-3 py-2"></td>
-                              <td colSpan={2} className="border px-3 py-2"></td>
-                            </tr>
-                            <tr>
-                              <td className="border px-3 py-2"></td>
-                              <td className="border px-3 py-2"></td>
-                            </tr>
-                          </>
-                        )}
+                        <tr>
+                          <td className="border border-slate-300 h-40"></td>
+                          <td className="border border-slate-300"></td>
+                        </tr>
                       </tbody>
                     </table>
-                  </div>
+                  )}
+                </div>
+
                 </div>
               </div>
             )}
@@ -569,7 +588,7 @@ export default function CompanyCardsPage() {
                                   <tr>
                                     <th className="print-subhead">담당자</th>
                                     <th className="print-subhead">방문자</th>
-                                    <th className="print-subhead">목적</th>
+                                    <th className="print-subhead-left">목적</th>
                                   </tr>
                                   <tr>
                                     <td className="align-top whitespace-pre-wrap">
@@ -583,7 +602,7 @@ export default function CompanyCardsPage() {
                                     </td>
                                   </tr>
                                   <tr>
-                                    <td colSpan={3} className="print-subhead text-left">
+                                    <td colSpan={3} className="print-subhead-left">
                                       (주요내용)
                                     </td>
                                   </tr>
@@ -593,7 +612,7 @@ export default function CompanyCardsPage() {
                                     </td>
                                   </tr>
                                   <tr>
-                                    <td colSpan={3} className="print-subhead text-left">
+                                    <td colSpan={3} className="print-subhead-left">
                                       (후속조치)
                                     </td>
                                   </tr>
@@ -621,7 +640,7 @@ export default function CompanyCardsPage() {
                                 <tr>
                                   <th className="print-subhead">담당자</th>
                                   <th className="print-subhead">방문자</th>
-                                  <th className="print-subhead">목적</th>
+                                  <th className="print-subhead-left">목적</th>
                                 </tr>
                                 <tr>
                                   <td></td>
@@ -629,7 +648,7 @@ export default function CompanyCardsPage() {
                                   <td></td>
                                 </tr>
                                 <tr>
-                                  <td colSpan={3} className="print-subhead text-left">
+                                  <td colSpan={3} className="print-subhead-left">
                                     (주요내용)
                                   </td>
                                 </tr>
@@ -637,7 +656,7 @@ export default function CompanyCardsPage() {
                                   <td colSpan={3} className="h-16"></td>
                                 </tr>
                                 <tr>
-                                  <td colSpan={3} className="print-subhead text-left">
+                                  <td colSpan={3} className="print-subhead-left">
                                     (후속조치)
                                   </td>
                                 </tr>
@@ -650,7 +669,7 @@ export default function CompanyCardsPage() {
                         </tr>
                       )}
                     </tbody>
-                  </table>                  
+                  </table>               
                 </div>
               </div>
             )}
