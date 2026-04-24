@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
@@ -21,6 +21,20 @@ type VisitOption = {
 }
 
 export default function VisitsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-slate-100">
+          <p className="text-slate-700">불러오는 중...</p>
+        </main>
+      }
+    >
+      <VisitsPageContent />
+    </Suspense>
+  )
+}
+
+function VisitsPageContent() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [visitOptions, setVisitOptions] = useState<VisitOption[]>([])
@@ -127,6 +141,24 @@ export default function VisitsPage() {
 
     fetchVisitOptions()
   }, [selectedLoadCompanyId])
+
+  const refreshVisitOptions = async (companyId: string) => {
+    const { data, error } = await supabase
+      .from('visit_logs')
+      .select('id, visit_date, purpose')
+      .eq('company_id', Number(companyId))
+      .order('visit_date', { ascending: false })
+      .order('id', { ascending: false })
+
+    if (error) return
+
+    const formatted: VisitOption[] = (data || []).map((item) => ({
+      id: item.id,
+      label: `${item.visit_date || ''} / ${item.purpose || '방문일지'}`,
+    }))
+
+    setVisitOptions(formatted)
+  }
 
   const loadVisitById = async (visitId: string | number) => {
     setMessage('')
@@ -268,23 +300,6 @@ export default function VisitsPage() {
     }
 
     await loadVisitById(selectedVisitId)
-  }
-
-  const refreshVisitOptions = async (companyId: string) => {
-    const { data: visitData, error: visitError } = await supabase
-      .from('visit_logs')
-      .select('id, visit_date, purpose')
-      .eq('company_id', Number(companyId))
-      .order('visit_date', { ascending: false })
-      .order('id', { ascending: false })
-
-    if (!visitError) {
-      const formatted: VisitOption[] = (visitData || []).map((item) => ({
-        id: item.id,
-        label: `${item.visit_date || ''} / ${item.purpose || '방문일지'}`,
-      }))
-      setVisitOptions(formatted)
-    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
