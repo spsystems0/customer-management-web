@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
 import { supabase } from '../../lib/supabase'
 
+type SidebarMode = 'guest' | 'sales'
+
 type Company = {
   id: string
   customer_name?: string | null
@@ -68,6 +70,7 @@ function formatDate(value?: string | null) {
 export default function VisitHistoryPage() {
   const router = useRouter()
 
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>('guest')
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
 
@@ -85,6 +88,9 @@ export default function VisitHistoryPage() {
 
   const [hasSearched, setHasSearched] = useState(false)
 
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
+
   useEffect(() => {
     const initialize = async () => {
       setLoading(true)
@@ -92,13 +98,9 @@ export default function VisitHistoryPage() {
 
       const {
         data: { session },
-        error: sessionError,
       } = await supabase.auth.getSession()
 
-      if (sessionError || !session) {
-        window.location.href = '/login'
-        return
-      }
+      setSidebarMode(session ? 'sales' : 'guest')
 
       const [companyRes, contactRes, visitRes] = await Promise.all([
         supabase
@@ -121,30 +123,24 @@ export default function VisitHistoryPage() {
           .order('id', { ascending: false }),
       ])
 
+      const messages: string[] = []
+
       if (companyRes.error) {
-        setMessage(`고객사 목록 조회 실패: ${companyRes.error.message}`)
+        messages.push(`고객사 목록 조회 실패: ${companyRes.error.message}`)
       }
 
       if (contactRes.error) {
-        setMessage((prev) =>
-          prev
-            ? `${prev}\n고객담당자 목록 조회 실패: ${contactRes.error.message}`
-            : `고객담당자 목록 조회 실패: ${contactRes.error.message}`
-        )
+        messages.push(`고객담당자 목록 조회 실패: ${contactRes.error.message}`)
       }
 
       if (visitRes.error) {
-        setMessage((prev) =>
-          prev
-            ? `${prev}\n방문일지 목록 조회 실패: ${visitRes.error.message}`
-            : `방문일지 목록 조회 실패: ${visitRes.error.message}`
-        )
+        messages.push(`방문일지 목록 조회 실패: ${visitRes.error.message}`)
       }
 
+      setMessage(messages.join('\n'))
       setCompanies((companyRes.data as Company[]) || [])
       setContacts((contactRes.data as Contact[]) || [])
       setVisits((visitRes.data as Visit[]) || [])
-
       setLoading(false)
     }
 
@@ -196,11 +192,17 @@ export default function VisitHistoryPage() {
       const contactId = visit.contact_id || ''
       const visitor = getVisitorName(visit)
 
-      if (selectedCompanyId !== 'all' && String(companyId) !== String(selectedCompanyId)) {
+      if (
+        selectedCompanyId !== 'all' &&
+        String(companyId) !== String(selectedCompanyId)
+      ) {
         return
       }
 
-      if (selectedContactId !== 'all' && String(contactId) !== String(selectedContactId)) {
+      if (
+        selectedContactId !== 'all' &&
+        String(contactId) !== String(selectedContactId)
+      ) {
         return
       }
 
@@ -261,6 +263,12 @@ export default function VisitHistoryPage() {
   }, [visits, appliedCompanyId, appliedContactId, appliedVisitor, hasSearched])
 
   function handleRowClick(visit: Visit) {
+    if (sidebarMode === 'guest') {
+      setSelectedVisit(visit)
+      setIsModalOpen(true)
+      return
+    }
+
     const companyId = visit.company_id || visit.customer_id || ''
     const contactId = visit.contact_id || ''
     const visitor = getVisitorName(visit)
@@ -276,6 +284,11 @@ export default function VisitHistoryPage() {
     router.push(`/visits?${params.toString()}`)
   }
 
+  function closeModal() {
+    setIsModalOpen(false)
+    setSelectedVisit(null)
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100">
@@ -286,7 +299,7 @@ export default function VisitHistoryPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex">
-      <Sidebar mode="sales" />
+      <Sidebar mode={sidebarMode} />
 
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-[1400px] space-y-6">
@@ -377,7 +390,9 @@ export default function VisitHistoryPage() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-slate-900">조회 결과</h2>
               <span className="text-sm text-slate-500">
-                행을 클릭하면 방문일지 작성 화면으로 이동합니다.
+                {sidebarMode === 'sales'
+                  ? '행을 클릭하면 방문일지 작성 화면으로 이동합니다.'
+                  : '행을 클릭하면 방문일지 상세 팝업이 열립니다.'}
               </span>
             </div>
 
@@ -458,6 +473,80 @@ export default function VisitHistoryPage() {
           </section>
         </div>
       </main>
+
+      {isModalOpen && selectedVisit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-3xl rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <h3 className="text-xl font-bold text-slate-900">방문일지 상세</h3>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-lg px-3 py-1 text-slate-600 hover:bg-slate-100"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="space-y-5 px-6 py-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ReadItem
+                  label="고객사"
+                  value={getCompanyName(
+                    companyMap.get(
+                      String(selectedVisit.company_id || selectedVisit.customer_id || '')
+                    )
+                  )}
+                />
+                <ReadItem
+                  label="고객담당자"
+                  value={getContactName(
+                    contactMap.get(String(selectedVisit.contact_id || ''))
+                  )}
+                />
+                <ReadItem label="방문자" value={getVisitorName(selectedVisit)} />
+                <ReadItem label="방문일자" value={formatDate(selectedVisit.visit_date)} />
+              </div>
+
+              <ReadBlock label="방문목적" value={getVisitPurpose(selectedVisit)} />
+              <ReadBlock label="상담내용" value={selectedVisit.discussion || ''} />
+              <ReadBlock label="후속조치" value={selectedVisit.follow_up_action || ''} />
+            </div>
+
+            <div className="flex justify-end border-t border-slate-200 px-6 py-4">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-2xl bg-slate-700 px-5 py-2.5 font-semibold text-white hover:bg-slate-800"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReadItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="text-sm font-semibold text-slate-600">{label}</div>
+      <div className="mt-1 text-black whitespace-pre-wrap">{value || '-'}</div>
+    </div>
+  )
+}
+
+function ReadBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+        {label}
+      </div>
+      <div className="min-h-[96px] whitespace-pre-wrap px-4 py-4 text-black">
+        {value || '-'}
+      </div>
     </div>
   )
 }
