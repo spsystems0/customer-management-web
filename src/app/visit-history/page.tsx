@@ -476,7 +476,7 @@ export default function VisitHistoryPage() {
 
       {isModalOpen && selectedVisit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-3xl rounded-3xl bg-white shadow-2xl">
+          <div className="w-full max-w-6xl rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h3 className="text-xl font-bold text-slate-900">방문일지 상세</h3>
               <button
