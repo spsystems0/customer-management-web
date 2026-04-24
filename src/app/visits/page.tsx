@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
 
@@ -39,6 +40,8 @@ export default function VisitsPage() {
   const [purpose, setPurpose] = useState('')
   const [discussion, setDiscussion] = useState('')
   const [followUpAction, setFollowUpAction] = useState('')
+
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     const initialize = async () => {
@@ -125,37 +128,8 @@ export default function VisitsPage() {
     fetchVisitOptions()
   }, [selectedLoadCompanyId])
 
-  const resetForm = () => {
-    setEditingId(null)
-    setSelectedVisitId('')
-    setSelectedCompanyId('')
-    setSelectedContactId('')
-    setVisitorName('')
-    setVisitDate('')
-    setPurpose('')
-    setDiscussion('')
-    setFollowUpAction('')
-    setContacts([])
+  const loadVisitById = async (visitId: string | number) => {
     setMessage('')
-  }
-
-  const handleNewEntry = () => {
-    resetForm()
-    setSelectedCompanyId(selectedLoadCompanyId || '')
-  }
-
-  const handleLoadVisit = async () => {
-    setMessage('')
-
-    if (!selectedLoadCompanyId) {
-      setMessage('고객사를 선택해 주세요.')
-      return
-    }
-
-    if (!selectedVisitId) {
-      setMessage('방문일지를 선택해 주세요.')
-      return
-    }
 
     const { data, error } = await supabase
       .from('visit_logs')
@@ -169,7 +143,7 @@ export default function VisitsPage() {
         discussion,
         follow_up_action
       `)
-      .eq('id', Number(selectedVisitId))
+      .eq('id', Number(visitId))
       .single()
 
     if (error || !data) {
@@ -178,6 +152,7 @@ export default function VisitsPage() {
     }
 
     setEditingId(data.id)
+    setSelectedLoadCompanyId(String(data.company_id))
     setSelectedCompanyId(String(data.company_id))
     setVisitorName(data.visitor_name || '')
     setVisitDate(data.visit_date || '')
@@ -199,7 +174,117 @@ export default function VisitsPage() {
 
     setContacts(contactData || [])
     setSelectedContactId(data.contact_id ? String(data.contact_id) : '')
+    setSelectedVisitId(String(data.id))
     setMessage('방문일지를 불러왔습니다.')
+  }
+
+  useEffect(() => {
+    const applyParams = async () => {
+      const visitId = searchParams.get('visitId')
+      const companyId = searchParams.get('companyId')
+      const contactId = searchParams.get('contactId')
+      const visitor = searchParams.get('visitor')
+
+      if (companyId) {
+        setSelectedLoadCompanyId(companyId)
+        setSelectedCompanyId(companyId)
+      }
+
+      if (visitor) {
+        setVisitorName(visitor)
+      }
+
+      if (visitId) {
+        await loadVisitById(visitId)
+        return
+      }
+
+      if (companyId) {
+        const { data: contactData, error: contactError } = await supabase
+          .from('contacts')
+          .select('id, name')
+          .eq('company_id', Number(companyId))
+          .order('print_order', { ascending: true })
+          .order('name', { ascending: true })
+
+        if (!contactError) {
+          setContacts(contactData || [])
+        }
+      }
+
+      if (contactId) {
+        setSelectedContactId(contactId)
+      }
+    }
+
+    applyParams()
+  }, [searchParams])
+
+  const resetForm = () => {
+    setEditingId(null)
+    setSelectedVisitId('')
+    setSelectedCompanyId('')
+    setSelectedContactId('')
+    setVisitorName('')
+    setVisitDate('')
+    setPurpose('')
+    setDiscussion('')
+    setFollowUpAction('')
+    setContacts([])
+    setMessage('')
+  }
+
+  const handleNewEntry = async () => {
+    const currentLoadCompanyId = selectedLoadCompanyId
+    resetForm()
+
+    if (currentLoadCompanyId) {
+      setSelectedCompanyId(currentLoadCompanyId)
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, name')
+        .eq('company_id', Number(currentLoadCompanyId))
+        .order('print_order', { ascending: true })
+        .order('name', { ascending: true })
+
+      if (!error) {
+        setContacts(data || [])
+      }
+    }
+  }
+
+  const handleLoadVisit = async () => {
+    setMessage('')
+
+    if (!selectedLoadCompanyId) {
+      setMessage('고객사를 선택해 주세요.')
+      return
+    }
+
+    if (!selectedVisitId) {
+      setMessage('방문일지를 선택해 주세요.')
+      return
+    }
+
+    await loadVisitById(selectedVisitId)
+  }
+
+  const refreshVisitOptions = async (companyId: string) => {
+    const { data: visitData, error: visitError } = await supabase
+      .from('visit_logs')
+      .select('id, visit_date, purpose')
+      .eq('company_id', Number(companyId))
+      .order('visit_date', { ascending: false })
+      .order('id', { ascending: false })
+
+    if (!visitError) {
+      const formatted: VisitOption[] = (visitData || []).map((item) => ({
+        id: item.id,
+        label: `${item.visit_date || ''} / ${item.purpose || '방문일지'}`,
+      }))
+      setVisitOptions(formatted)
+    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -250,21 +335,7 @@ export default function VisitsPage() {
     }
 
     setSelectedLoadCompanyId(selectedCompanyId)
-
-    const { data: visitData, error: visitError } = await supabase
-      .from('visit_logs')
-      .select('id, visit_date, purpose')
-      .eq('company_id', Number(selectedCompanyId))
-      .order('visit_date', { ascending: false })
-      .order('id', { ascending: false })
-
-    if (!visitError) {
-      const formatted: VisitOption[] = (visitData || []).map((item) => ({
-        id: item.id,
-        label: `${item.visit_date || ''} / ${item.purpose || '방문일지'}`,
-      }))
-      setVisitOptions(formatted)
-    }
+    await refreshVisitOptions(selectedCompanyId)
   }
 
   const handleDelete = async () => {
@@ -293,19 +364,8 @@ export default function VisitsPage() {
     resetForm()
     setSelectedLoadCompanyId(currentCompanyId)
 
-    const { data: visitData, error: visitError } = await supabase
-      .from('visit_logs')
-      .select('id, visit_date, purpose')
-      .eq('company_id', Number(currentCompanyId))
-      .order('visit_date', { ascending: false })
-      .order('id', { ascending: false })
-
-    if (!visitError) {
-      const formatted: VisitOption[] = (visitData || []).map((item) => ({
-        id: item.id,
-        label: `${item.visit_date || ''} / ${item.purpose || '방문일지'}`,
-      }))
-      setVisitOptions(formatted)
+    if (currentCompanyId) {
+      await refreshVisitOptions(currentCompanyId)
     }
 
     setMessage('방문일지가 삭제되었습니다.')
@@ -330,8 +390,7 @@ export default function VisitsPage() {
               방문일지 등록 / 수정 / 삭제
             </h1>
             <p className="mt-2 text-slate-600">
-              고객사와 방문일지를 선택해 기존 정보를 불러오거나 신규 등록할 수
-              있습니다.
+              고객사와 방문일지를 선택해 기존 정보를 불러오거나 신규 등록할 수 있습니다.
             </p>
 
             <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -474,7 +533,7 @@ export default function VisitsPage() {
               </div>
 
               {message && (
-                <div className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                <div className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap">
                   {message}
                 </div>
               )}

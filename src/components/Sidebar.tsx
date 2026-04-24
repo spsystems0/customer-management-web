@@ -92,6 +92,13 @@ export default function Sidebar({ mode }: SidebarProps) {
           </Link>
 
           <Link
+            href="/visit-history"
+            className="block w-full rounded-xl bg-orange-50 px-4 py-4 font-medium text-orange-900 transition hover:bg-orange-100"
+          >
+            방문일지 조회
+          </Link>
+
+          <Link
             href="/login"
             className="block w-full rounded-xl bg-slate-100 px-4 py-4 font-medium text-slate-800 transition hover:bg-slate-200"
           >
@@ -112,6 +119,13 @@ export default function Sidebar({ mode }: SidebarProps) {
             className="block w-full rounded-xl bg-emerald-50 px-4 py-4 font-medium text-emerald-900 transition hover:bg-emerald-100"
           >
             고객관리카드 조회
+          </Link>
+
+          <Link
+            href="/visit-history"
+            className="block w-full rounded-xl bg-orange-50 px-4 py-4 font-medium text-orange-900 transition hover:bg-orange-100"
+          >
+            방문일지 조회
           </Link>
 
           <Link
