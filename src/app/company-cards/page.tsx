@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
 
@@ -34,12 +34,10 @@ type Contact = {
 
 type VisitLog = {
   id: number
-  visit_date: string | null
-  contact_name: string | null
-  purpose: string | null
-  visitor_name: string | null
-  discussion: string | null
-  follow_up_action: string | null
+  visit_date: string
+  contact_name: string
+  purpose: string
+  visitor_name: string
 }
 
 type CustomerCategoryCode = {
@@ -47,6 +45,8 @@ type CustomerCategoryCode = {
   code: string
   code_name: string
 }
+
+
 
 export default function CompanyCardsPage() {
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('guest')
@@ -153,14 +153,12 @@ export default function CompanyCardsPage() {
         id,
         visit_date,
         purpose,
-        discussion,
         visitor_name,
-        follow_up_action,
-        contact_id,
         contacts(name)
       `)
       .eq('company_id', Number(selectedCompanyId))
       .order('visit_date', { ascending: false })
+      .order('id', { ascending: false })
       .limit(50)
 
     if (visitError) {
@@ -170,12 +168,10 @@ export default function CompanyCardsPage() {
 
     const formattedVisitLogs: VisitLog[] = (visitData || []).map((item: any) => ({
       id: item.id,
-      visit_date: item.visit_date,
+      visit_date: item.visit_date || '',
       contact_name: item.contacts?.name || '',
-      purpose: item.purpose,
-      visitor_name: item.visitor_name,
-      discussion: item.discussion,
-      follow_up_action: item.follow_up_action,
+      purpose: item.purpose || '',
+      visitor_name: item.visitor_name || '',
     }))
 
     setVisitLogs(formattedVisitLogs)
@@ -189,6 +185,7 @@ export default function CompanyCardsPage() {
     window.print()
   }
 
+ 
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100">
@@ -242,7 +239,7 @@ export default function CompanyCardsPage() {
               </div>
 
               {message && (
-                <div className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-black">
+                <div className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-black whitespace-pre-wrap">
                   {message}
                 </div>
               )}
@@ -333,112 +330,50 @@ export default function CompanyCardsPage() {
                 <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-6">
                   <h3 className="text-lg font-bold text-black">방문 이력</h3>
 
-                <div className="mt-4 space-y-4">
-                  {visitLogs.length > 0 ? (
-                    visitLogs.map((log) => (
-                      <table
-                        key={log.id}
-                        className="w-full table-fixed border-collapse border border-slate-300 text-sm text-black"
-                      >
-                        <colgroup>
-                          <col style={{ width: '12%' }} />
-                          <col style={{ width: '88%' }} />
-                        </colgroup>
-
-                        <tbody>
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="min-w-full table-fixed border border-slate-300 text-sm text-black">
+                      <colgroup>
+                        <col style={{ width: '14%' }} />
+                        <col style={{ width: '14%' }} />
+                        <col style={{ width: '14%' }} />
+                        <col style={{ width: '58%' }} />
+                      </colgroup>
+                      <thead className="bg-slate-100">
+                        <tr>
+                          <th className="border px-3 py-2 text-center">방문일자</th>
+                          <th className="border px-3 py-2 text-center">담당자</th>
+                          <th className="border px-3 py-2 text-center">방문자</th>
+                          <th className="border px-3 py-2 text-center">방문목적</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visitLogs.length > 0 ? (
+                          visitLogs.map((row) => (
+                            <tr key={`visit-screen-${row.id}`}>
+                              <td className="border px-3 py-2 text-center">
+                                {row.visit_date || ''}
+                              </td>
+                              <td className="border px-3 py-2 text-center">
+                                {row.contact_name || ''}
+                              </td>
+                              <td className="border px-3 py-2 text-center">
+                                {row.visitor_name || ''}
+                              </td>
+                              <td className="border px-3 py-2">
+                                {row.purpose || ''}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
                           <tr>
-                            <td
-                              rowSpan={5}
-                              className="border border-slate-300 px-3 py-2 align-middle text-center whitespace-pre-wrap"
-                            >
-                              {log.visit_date || ''}
-                            </td>
-
-                            <td className="border border-slate-300 p-0">
-                              <table className="w-full table-fixed border-collapse text-sm text-black">
-                                <colgroup>
-                                  <col style={{ width: '14%' }} />
-                                  <col style={{ width: '14%' }} />
-                                  <col style={{ width: '72%' }} />
-                                </colgroup>
-                                <tbody>
-                                  <tr>
-                                    <th className="border-b border-slate-300 border-r px-3 py-2 bg-slate-100 text-center">
-                                      담당자
-                                    </th>
-                                    <th className="border-b border-slate-300 border-r px-3 py-2 bg-slate-100 text-center">
-                                      방문자
-                                    </th>
-                                    <th className="border-b border-slate-300 px-3 py-2 bg-slate-100 text-left">
-                                      목적
-                                    </th>
-                                  </tr>
-                                  <tr>
-                                    <td className="border-r border-slate-300 px-3 py-2 align-top whitespace-pre-wrap">
-                                      {log.contact_name || ''}
-                                    </td>
-                                    <td className="border-r border-slate-300 px-3 py-2 align-top whitespace-pre-wrap">
-                                      {log.visitor_name || ''}
-                                    </td>
-                                    <td className="px-3 py-2 align-top whitespace-pre-wrap">
-                                      {log.purpose || ''}
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td
-                                      colSpan={3}
-                                      className="border-t border-slate-300 px-3 py-2 bg-slate-100 text-left font-semibold"
-                                    >
-                                      (주요내용)
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td
-                                      colSpan={3}
-                                      className="border-t border-slate-300 px-3 py-2 align-top whitespace-pre-wrap"
-                                    >
-                                      {log.discussion || ''}
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td
-                                      colSpan={3}
-                                      className="border-t border-slate-300 px-3 py-2 bg-slate-100 text-left font-semibold"
-                                    >
-                                      (후속조치)
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td
-                                      colSpan={3}
-                                      className="border-t border-slate-300 px-3 py-2 align-top whitespace-pre-wrap"
-                                    >
-                                      {log.follow_up_action || ''}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
+                            <td colSpan={4} className="border px-3 py-6 text-center text-slate-500">
+                              방문이력이 없습니다.
                             </td>
                           </tr>
-                        </tbody>
-                      </table>
-                    ))
-                  ) : (
-                    <table className="w-full table-fixed border-collapse border border-slate-300 text-sm text-black">
-                      <colgroup>
-                        <col style={{ width: '12%' }} />
-                        <col style={{ width: '88%' }} />
-                      </colgroup>
-                      <tbody>
-                        <tr>
-                          <td className="border border-slate-300 h-40"></td>
-                          <td className="border border-slate-300"></td>
-                        </tr>
+                        )}
                       </tbody>
                     </table>
-                  )}
-                </div>
-
+                  </div>
                 </div>
               </div>
             )}
@@ -565,111 +500,44 @@ export default function CompanyCardsPage() {
 
                   <table className="print-visit-table">
                     <colgroup>
-                      <col style={{ width: '16%' }} />
-                      <col style={{ width: '84%' }} />
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '58%' }} />
                     </colgroup>
-
+                    <thead>
+                      <tr>
+                        <th className="print-subhead">방문일자</th>
+                        <th className="print-subhead">담당자</th>
+                        <th className="print-subhead">방문자</th>
+                        <th className="print-subhead">방문목적</th>
+                      </tr>
+                    </thead>
                     <tbody>
                       {visitLogs.length > 0 ? (
-                        visitLogs.map((log) => (
-                          <tr key={log.id}>
-                            <td className="align-top whitespace-pre-wrap text-center">
-                              {log.visit_date || ''}
+                        visitLogs.map((row) => (
+                          <tr key={`visit-print-${row.id}`}>
+                            <td style={{ textAlign: 'center' }}>
+                              {row.visit_date || ''}
                             </td>
-
-                            <td className="p-0">
-                              <table className="w-full border-collapse table-fixed text-sm">
-                                <colgroup>
-                                  <col style={{ width: '18%' }} />
-                                  <col style={{ width: '18%' }} />
-                                  <col style={{ width: '64%' }} />
-                                </colgroup>
-                                <tbody>
-                                  <tr>
-                                    <th className="print-subhead">담당자</th>
-                                    <th className="print-subhead">방문자</th>
-                                    <th className="print-subhead-left">목적</th>
-                                  </tr>
-                                  <tr>
-                                    <td className="align-top whitespace-pre-wrap">
-                                      {log.contact_name || ''}
-                                    </td>
-                                    <td className="align-top whitespace-pre-wrap">
-                                      {log.visitor_name || ''}
-                                    </td>
-                                    <td className="align-top whitespace-pre-wrap">
-                                      {log.purpose || ''}
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td colSpan={3} className="print-subhead-left">
-                                      (주요내용)
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td colSpan={3} className="align-top whitespace-pre-wrap">
-                                      {log.discussion || ''}
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td colSpan={3} className="print-subhead-left">
-                                      (후속조치)
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    <td colSpan={3} className="align-top whitespace-pre-wrap">
-                                      {log.follow_up_action || ''}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
+                            <td style={{ textAlign: 'center' }}>
+                              {row.contact_name || ''}
                             </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {row.visitor_name || ''}
+                            </td>
+                            <td>{row.purpose || ''}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td className="text-center"></td>
-                          <td className="p-0">
-                            <table className="w-full border-collapse table-fixed text-sm">
-                              <colgroup>
-                                <col style={{ width: '18%' }} />
-                                <col style={{ width: '18%' }} />
-                                <col style={{ width: '64%' }} />
-                              </colgroup>
-                              <tbody>
-                                <tr>
-                                  <th className="print-subhead">담당자</th>
-                                  <th className="print-subhead">방문자</th>
-                                  <th className="print-subhead-left">목적</th>
-                                </tr>
-                                <tr>
-                                  <td></td>
-                                  <td></td>
-                                  <td></td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={3} className="print-subhead-left">
-                                    (주요내용)
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={3} className="h-16"></td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={3} className="print-subhead-left">
-                                    (후속조치)
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={3} className="h-12"></td>
-                                </tr>
-                              </tbody>
-                            </table>
+                          <td colSpan={4} style={{ textAlign: 'center' }}>
+                            방문이력이 없습니다.
                           </td>
                         </tr>
                       )}
                     </tbody>
-                  </table>               
+                  </table>
                 </div>
               </div>
             )}

@@ -43,6 +43,18 @@ export default function HomePage() {
             </a>
 
             <a
+              href="/visit-history"
+              className="block rounded-2xl bg-white p-6 shadow transition hover:-translate-y-1 hover:shadow-lg"
+            >
+              <h2 className="text-xl font-bold text-emerald-700">
+                방문일지 조회
+              </h2>
+              <p className="mt-3 text-slate-600">
+                로그인 없이 고객사의 담당자 또는 방문자별로 방문일지를 조회합니다.
+              </p>
+            </a>
+
+            <a
               href="/login"
               className="block rounded-2xl bg-white p-6 shadow transition hover:-translate-y-1 hover:shadow-lg"
             >

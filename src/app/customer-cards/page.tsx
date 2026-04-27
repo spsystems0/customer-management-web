@@ -362,7 +362,7 @@ export default function CustomerCardsPage() {
                                 방문자
                               </th>
                               <th className="border border-slate-200 px-3 py-2 text-left">
-                                주요내용
+                                방문목적
                               </th>
                             </tr>
                           </thead>
@@ -376,7 +376,7 @@ export default function CustomerCardsPage() {
                                   {log.visitor_name || ''}
                                 </td>
                                 <td className="border border-slate-200 px-3 py-2 whitespace-pre-wrap">
-                                  {log.discussion || ''}
+                                  {log.purpose || ''}
                                 </td>
                               </tr>
                             ))}
@@ -531,7 +531,7 @@ export default function CustomerCardsPage() {
                         </th>
                         <th className="customer-print-sub-label">방문일자</th>
                         <th className="customer-print-sub-label">방문자</th>
-                        <th className="customer-print-sub-label">주요 내용</th>
+                        <th className="customer-print-sub-label">방문 목적</th>
                       </tr>
 
                       {visitLogs.length > 0 ? (
@@ -540,7 +540,7 @@ export default function CustomerCardsPage() {
                             <td>{log.visit_date || ''}</td>
                             <td>{log.visitor_name || ''}</td>
                             <td className="customer-print-multiline">
-                              {log.discussion || ''}
+                               {log.purpose || ''}
                             </td>
                           </tr>
                         ))
