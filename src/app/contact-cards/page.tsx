@@ -13,6 +13,8 @@ export default function ContactsPage() {
   const [loadingCompanies, setLoadingCompanies] = useState(true)
 
   const [companyId, setCompanyId] = useState('')
+  const [companySearchText, setCompanySearchText] = useState('')
+
   const [name, setName] = useState('')
   const [position, setPosition] = useState('')
   const [workLocation, setWorkLocation] = useState('')
@@ -55,8 +57,29 @@ export default function ContactsPage() {
     loadCompanies()
   }, [])
 
+  const findCompanyByName = (customerName: string) => {
+    return companies.find(
+      (company) => company.customer_name.trim() === customerName.trim()
+    )
+  }
+
+  const handleCompanyInputChange = (value: string) => {
+    setCompanySearchText(value)
+    setMessage('')
+
+    const matchedCompany = findCompanyByName(value)
+
+    if (matchedCompany) {
+      setCompanyId(String(matchedCompany.id))
+    } else {
+      setCompanyId('')
+    }
+  }
+
   const resetForm = () => {
     setCompanyId('')
+    setCompanySearchText('')
+
     setName('')
     setPosition('')
     setWorkLocation('')
@@ -81,10 +104,26 @@ export default function ContactsPage() {
     e.preventDefault()
     setMessage('')
 
+    const matchedCompany = companyId
+      ? companies.find((company) => String(company.id) === String(companyId))
+      : findCompanyByName(companySearchText)
+
+    if (!matchedCompany) {
+      setMessage('고객사는 목록에서 선택하거나 정확한 고객사명을 입력해 주세요.')
+      return
+    }
+
+    const trimmedName = name.trim()
+
+    if (!trimmedName) {
+      setMessage('이름을 입력해 주세요.')
+      return
+    }
+
     const { error } = await supabase.from('contacts').insert([
       {
-        company_id: Number(companyId),
-        name,
+        company_id: Number(matchedCompany.id),
+        name: trimmedName,
         position: position || null,
         work_location: workLocation || null,
         department: department || null,
@@ -110,14 +149,17 @@ export default function ContactsPage() {
       return
     }
 
-    setMessage('고객담당자 정보가 저장되었습니다.')
     resetForm()
+    setMessage('고객담당자 정보가 저장되었습니다.')
   }
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-10">
       <div className="mx-auto max-w-6xl rounded-2xl bg-white p-8 shadow">
-        <h1 className="text-2xl font-bold text-slate-800">고객담당자 정보 등록</h1>
+        <h1 className="text-2xl font-bold text-slate-800">
+          고객담당자 정보 등록
+        </h1>
+
         <p className="mt-2 text-slate-600">
           고객사 담당자 정보를 입력하고 저장합니다.
         </p>
@@ -126,19 +168,31 @@ export default function ContactsPage() {
           <div className="mt-6 text-slate-600">고객사 목록 불러오는 중...</div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-8 grid gap-4 md:grid-cols-2">
-            <select
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-              required
-            >
-              <option value="">고객사를 선택하세요 *</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.customer_name}
-                </option>
-              ))}
-            </select>
+            <div>
+              <input
+                type="text"
+                list="company-list"
+                value={companySearchText}
+                onChange={(e) => handleCompanyInputChange(e.target.value)}
+                onBlur={() => {
+                  const matchedCompany = findCompanyByName(companySearchText)
+
+                  if (matchedCompany) {
+                    setCompanyId(String(matchedCompany.id))
+                    setCompanySearchText(matchedCompany.customer_name)
+                  }
+                }}
+                placeholder="고객사를 선택하세요 *"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
+                required
+              />
+
+              <datalist id="company-list">
+                {companies.map((company) => (
+                  <option key={company.id} value={company.customer_name} />
+                ))}
+              </datalist>
+            </div>
 
             <input
               value={name}
@@ -204,8 +258,9 @@ export default function ContactsPage() {
               className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 md:col-span-2"
             />
 
-            <div className="md:col-span-2 mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:col-span-2">
               <h2 className="text-lg font-semibold text-slate-800">민감정보</h2>
+
               <p className="mt-1 text-sm text-slate-600">
                 민감정보 출력 포함 체크 시 고객관리카드 출력 시 함께 표시됩니다.
               </p>
@@ -278,7 +333,7 @@ export default function ContactsPage() {
               </div>
             </div>
 
-            <div className="md:col-span-2 mt-4 flex gap-3">
+            <div className="mt-4 flex gap-3 md:col-span-2">
               <button
                 type="submit"
                 className="rounded-xl bg-emerald-700 px-6 py-3 font-medium text-white hover:bg-emerald-800"
@@ -296,7 +351,7 @@ export default function ContactsPage() {
             </div>
 
             {message && (
-              <div className="md:col-span-2 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+              <div className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 md:col-span-2 whitespace-pre-wrap">
                 {message}
               </div>
             )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
 
@@ -29,12 +29,17 @@ type CustomerCategoryCode = {
 }
 
 export default function CompaniesPage() {
+  const companyListRef = useRef<HTMLDivElement | null>(null)
+
   const [companies, setCompanies] = useState<Company[]>([])
   const [categoryCodes, setCategoryCodes] = useState<CustomerCategoryCode[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingList, setLoadingList] = useState(false)
 
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
+  const [companySearchText, setCompanySearchText] = useState('')
+  const [showCompanyList, setShowCompanyList] = useState(false)
+
   const [editingId, setEditingId] = useState<number | null>(null)
 
   const [customerName, setCustomerName] = useState('')
@@ -69,6 +74,35 @@ export default function CompaniesPage() {
 
     initialize()
   }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (
+        companyListRef.current &&
+        !companyListRef.current.contains(event.target as Node)
+      ) {
+        setShowCompanyList(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [])
+
+  const filteredCompanies = useMemo(() => {
+    const searchText = companySearchText.trim().toLowerCase()
+
+    if (!searchText) return companies
+
+    return companies.filter((company) =>
+      company.customer_name.toLowerCase().includes(searchText)
+    )
+  }, [companies, companySearchText])
 
   const fetchCompanies = async () => {
     setLoadingList(true)
@@ -119,7 +153,10 @@ export default function CompaniesPage() {
 
   const resetForm = () => {
     setSelectedCompanyId('')
+    setCompanySearchText('')
+    setShowCompanyList(false)
     setEditingId(null)
+
     setCustomerName('')
     setBusinessNumber('')
     setIndustry('')
@@ -135,11 +172,26 @@ export default function CompaniesPage() {
     setMessage('')
   }
 
+  const handleCompanyInputChange = (value: string) => {
+    setCompanySearchText(value)
+    setSelectedCompanyId('')
+    setShowCompanyList(true)
+    setMessage('')
+  }
+
+  const handleCompanySelect = (company: Company) => {
+    setSelectedCompanyId(String(company.id))
+    setCompanySearchText(company.customer_name)
+    setShowCompanyList(false)
+    setMessage('')
+  }
+
   const handleLoadCompany = () => {
     setMessage('')
+    setShowCompanyList(false)
 
     if (!selectedCompanyId) {
-      setMessage('불러올 고객사를 선택해 주세요.')
+      setMessage('불러올 고객사를 목록에서 선택해 주세요.')
       return
     }
 
@@ -173,6 +225,7 @@ export default function CompaniesPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setMessage('')
+    setShowCompanyList(false)
 
     const trimmedCustomerName = customerName.trim()
     const trimmedBusinessNumber = businessNumber.trim()
@@ -191,10 +244,8 @@ export default function CompaniesPage() {
       duplicateNameQuery = duplicateNameQuery.neq('id', editingId)
     }
 
-    const {
-      data: duplicateNameData,
-      error: duplicateNameError,
-    } = await duplicateNameQuery
+    const { data: duplicateNameData, error: duplicateNameError } =
+      await duplicateNameQuery
 
     if (duplicateNameError) {
       setMessage(`고객사명 중복 확인 실패: ${duplicateNameError.message}`)
@@ -219,10 +270,8 @@ export default function CompaniesPage() {
         duplicateBusinessQuery = duplicateBusinessQuery.neq('id', editingId)
       }
 
-      const {
-        data: duplicateBusinessData,
-        error: duplicateBusinessError,
-      } = await duplicateBusinessQuery
+      const { data: duplicateBusinessData, error: duplicateBusinessError } =
+        await duplicateBusinessQuery
 
       if (duplicateBusinessError) {
         setMessage(`사업자번호 중복 확인 실패: ${duplicateBusinessError.message}`)
@@ -266,6 +315,10 @@ export default function CompaniesPage() {
 
       setMessage('고객사 정보가 수정되었습니다.')
       await fetchCompanies()
+
+      setSelectedCompanyId(String(editingId))
+      setCompanySearchText(trimmedCustomerName)
+
       return
     }
 
@@ -283,6 +336,7 @@ export default function CompaniesPage() {
 
   const handleDelete = async () => {
     setMessage('')
+    setShowCompanyList(false)
 
     if (!editingId) {
       setMessage('삭제할 고객사를 먼저 불러와 주세요.')
@@ -325,8 +379,9 @@ export default function CompaniesPage() {
             <h1 className="text-2xl font-bold text-slate-800">
               고객사 정보 등록 / 수정 / 삭제
             </h1>
+
             <p className="mt-2 text-slate-600">
-              고객사를 선택해 기존 정보를 불러오거나 신규 등록할 수 있습니다.
+              고객사를 검색해 기존 정보를 불러오거나 신규 등록할 수 있습니다.
             </p>
 
             <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -335,20 +390,39 @@ export default function CompaniesPage() {
               </h2>
 
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto_auto]">
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                >
-                  <option value="">
-                    {loadingList ? '목록 불러오는 중...' : '고객사를 선택하세요'}
-                  </option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.customer_name}
-                    </option>
-                  ))}
-                </select>
+                <div ref={companyListRef} className="relative">
+                  <input
+                    type="text"
+                    value={companySearchText}
+                    onChange={(e) => handleCompanyInputChange(e.target.value)}
+                    onFocus={() => setShowCompanyList(true)}
+                    placeholder={
+                      loadingList ? '목록 불러오는 중...' : '고객사를 선택하세요'
+                    }
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
+                  />
+
+                  {showCompanyList && (
+                    <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+                      {filteredCompanies.length > 0 ? (
+                        filteredCompanies.map((company) => (
+                          <button
+                            key={company.id}
+                            type="button"
+                            onClick={() => handleCompanySelect(company)}
+                            className="block w-full px-4 py-3 text-left text-black hover:bg-blue-50"
+                          >
+                            {company.customer_name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-slate-500">
+                          검색된 고객사가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   type="button"
@@ -460,7 +534,7 @@ export default function CompaniesPage() {
                 className="min-h-[120px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 md:col-span-2"
               />
 
-              <div className="md:col-span-2 mt-4 flex gap-3">
+              <div className="mt-4 flex gap-3 md:col-span-2">
                 <button
                   type="submit"
                   className="rounded-xl bg-blue-700 px-6 py-3 font-medium text-white hover:bg-blue-800"
@@ -496,7 +570,7 @@ export default function CompaniesPage() {
               </div>
 
               {message && (
-                <div className="md:col-span-2 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                <div className="whitespace-pre-wrap rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 md:col-span-2">
                   {message}
                 </div>
               )}

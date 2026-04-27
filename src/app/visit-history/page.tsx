@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
 import { supabase } from '../../lib/supabase'
@@ -8,25 +8,25 @@ import { supabase } from '../../lib/supabase'
 type SidebarMode = 'guest' | 'sales'
 
 type Company = {
-  id: string
+  id: string | number
   customer_name?: string | null
   company_name?: string | null
   name?: string | null
 }
 
 type Contact = {
-  id: string
-  company_id?: string | null
-  customer_id?: string | null
+  id: string | number
+  company_id?: string | number | null
+  customer_id?: string | number | null
   name?: string | null
   contact_name?: string | null
 }
 
 type Visit = {
-  id: string
-  company_id?: string | null
-  customer_id?: string | null
-  contact_id?: string | null
+  id: string | number
+  company_id?: string | number | null
+  customer_id?: string | number | null
+  contact_id?: string | number | null
   visitor_name?: string | null
   visitor?: string | null
   salesperson?: string | null
@@ -67,8 +67,15 @@ function formatDate(value?: string | null) {
   return value.slice(0, 10)
 }
 
+function getVisitDateSortKey(value?: string | null) {
+  if (!value) return ''
+  return value.slice(0, 10)
+}
+
 export default function VisitHistoryPage() {
   const router = useRouter()
+
+  const companyDropdownRef = useRef<HTMLDivElement | null>(null)
 
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('guest')
   const [loading, setLoading] = useState(true)
@@ -81,6 +88,9 @@ export default function VisitHistoryPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState('all')
   const [selectedContactId, setSelectedContactId] = useState('all')
   const [selectedVisitor, setSelectedVisitor] = useState('all')
+
+  const [companySearchText, setCompanySearchText] = useState('')
+  const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false)
 
   const [appliedCompanyId, setAppliedCompanyId] = useState('all')
   const [appliedContactId, setAppliedContactId] = useState('all')
@@ -147,21 +157,103 @@ export default function VisitHistoryPage() {
     initialize()
   }, [])
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        companyDropdownRef.current &&
+        !companyDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsCompanyDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   const companyMap = useMemo(() => {
     const map = new Map<string, Company>()
+
     companies.forEach((item) => {
       map.set(String(item.id), item)
     })
+
     return map
   }, [companies])
 
   const contactMap = useMemo(() => {
     const map = new Map<string, Contact>()
+
     contacts.forEach((item) => {
       map.set(String(item.id), item)
     })
+
     return map
   }, [contacts])
+
+  const filteredCompanyOptions = useMemo(() => {
+    const keyword = companySearchText.trim().toLowerCase()
+
+    if (!keyword) return companies
+
+    return companies.filter((company) =>
+      getCompanyName(company).toLowerCase().includes(keyword)
+    )
+  }, [companies, companySearchText])
+
+  const findCompanyByName = (customerName: string) => {
+    const searchName = customerName.trim().toLowerCase()
+
+    if (!searchName) return undefined
+
+    return companies.find(
+      (company) => getCompanyName(company).trim().toLowerCase() === searchName
+    )
+  }
+
+  function resetSubFilters() {
+    setSelectedContactId('all')
+    setSelectedVisitor('all')
+    setHasSearched(false)
+    setMessage('')
+  }
+
+  function handleCompanyInputChange(value: string) {
+    setCompanySearchText(value)
+    setIsCompanyDropdownOpen(true)
+    resetSubFilters()
+
+    if (!value.trim()) {
+      setSelectedCompanyId('all')
+      return
+    }
+
+    const matchedCompany = findCompanyByName(value)
+
+    if (matchedCompany) {
+      setSelectedCompanyId(String(matchedCompany.id))
+    } else {
+      setSelectedCompanyId('all')
+    }
+  }
+
+  function handleCompanySelect(company?: Company) {
+    resetSubFilters()
+
+    if (!company) {
+      setCompanySearchText('')
+      setSelectedCompanyId('all')
+      setIsCompanyDropdownOpen(false)
+      return
+    }
+
+    setCompanySearchText(getCompanyName(company))
+    setSelectedCompanyId(String(company.id))
+    setIsCompanyDropdownOpen(false)
+  }
 
   const filteredContacts = useMemo(() => {
     if (selectedCompanyId === 'all') return contacts
@@ -218,13 +310,36 @@ export default function VisitHistoryPage() {
     if (selectedVisitor === 'all') return
 
     const exists = visitorOptions.includes(selectedVisitor)
+
     if (!exists) {
       setSelectedVisitor('all')
     }
   }, [visitorOptions, selectedVisitor])
 
   function handleSearch() {
-    setAppliedCompanyId(selectedCompanyId)
+    const trimmedText = companySearchText.trim()
+
+    let companyIdToApply = selectedCompanyId
+
+    if (trimmedText) {
+      const matchedCompany = findCompanyByName(trimmedText)
+
+      if (!matchedCompany) {
+        setMessage('고객사는 목록에서 선택하거나 정확한 고객사명을 입력해 주세요.')
+        return
+      }
+
+      companyIdToApply = String(matchedCompany.id)
+      setSelectedCompanyId(companyIdToApply)
+      setCompanySearchText(getCompanyName(matchedCompany))
+    } else {
+      companyIdToApply = 'all'
+      setSelectedCompanyId('all')
+    }
+
+    setIsCompanyDropdownOpen(false)
+    setMessage('')
+    setAppliedCompanyId(companyIdToApply)
     setAppliedContactId(selectedContactId)
     setAppliedVisitor(selectedVisitor)
     setHasSearched(true)
@@ -253,14 +368,27 @@ export default function VisitHistoryPage() {
     }
 
     result.sort((a, b) => {
-      const aDate = a.visit_date || ''
-      const bDate = b.visit_date || ''
-      if (bDate !== aDate) return bDate.localeCompare(aDate)
+      const aDate = getVisitDateSortKey(a.visit_date)
+      const bDate = getVisitDateSortKey(b.visit_date)
+
+      if (aDate && bDate && aDate !== bDate) {
+        return bDate.localeCompare(aDate)
+      }
+
+      if (!aDate && bDate) return 1
+      if (aDate && !bDate) return -1
+
       return String(b.id).localeCompare(String(a.id))
     })
 
     return result
-  }, [visits, appliedCompanyId, appliedContactId, appliedVisitor, hasSearched])
+  }, [
+    visits,
+    appliedCompanyId,
+    appliedContactId,
+    appliedVisitor,
+    hasSearched,
+  ])
 
   function handleRowClick(visit: Visit) {
     if (sidebarMode === 'guest') {
@@ -279,6 +407,7 @@ export default function VisitHistoryPage() {
     if (companyId) params.set('companyId', String(companyId))
     if (contactId) params.set('contactId', String(contactId))
     if (visitor && visitor !== '-') params.set('visitor', visitor)
+
     params.set('from', 'visit-history')
 
     router.push(`/visits?${params.toString()}`)
@@ -298,50 +427,111 @@ export default function VisitHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex">
+    <div className="flex min-h-screen bg-slate-100">
       <Sidebar mode={sidebarMode} />
 
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-[1400px] space-y-6">
-          <section className="rounded-3xl bg-white shadow-sm border border-slate-200 p-8">
-            <h1 className="text-4xl font-bold text-slate-900">방문일지 조회</h1>
+          <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <h1 className="text-4xl font-bold text-slate-900">
+              방문일지 조회
+            </h1>
             <p className="mt-3 text-lg text-slate-600">
               고객사, 고객담당자, 영업담당자 조건으로 방문일지를 조회합니다.
             </p>
           </section>
 
-          <section className="rounded-3xl bg-white shadow-sm border border-slate-200 p-8">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">검색 조건</h2>
+          <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <h2 className="mb-6 text-2xl font-bold text-slate-900">
+              검색 조건
+            </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
                   고객사
                 </label>
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-black bg-white"
-                >
-                  <option value="all">전체</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={String(company.id)}>
-                      {getCompanyName(company)}
-                    </option>
-                  ))}
-                </select>
+
+                <div ref={companyDropdownRef} className="relative">
+                  <div className="flex w-full overflow-hidden rounded-2xl border border-slate-300 bg-white">
+                    <input
+                      type="text"
+                      value={companySearchText}
+                      onChange={(e) =>
+                        handleCompanyInputChange(e.target.value)
+                      }
+                      onFocus={() => setIsCompanyDropdownOpen(true)}
+                      placeholder="전체 또는 고객사명을 입력하세요"
+                      className="min-w-0 flex-1 bg-white px-4 py-3 text-black outline-none placeholder:text-slate-500"
+                    />
+
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() =>
+                        setIsCompanyDropdownOpen((prev) => !prev)
+                      }
+                      className="flex w-12 items-center justify-center bg-white text-black"
+                    >
+                      ▼
+                    </button>
+                  </div>
+
+                  {isCompanyDropdownOpen && (
+                    <div className="absolute left-0 right-0 z-40 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-300 bg-white py-2 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => handleCompanySelect()}
+                        className={`block w-full px-4 py-3 text-left text-sm text-black hover:bg-slate-100 ${
+                          selectedCompanyId === 'all'
+                            ? 'bg-slate-100 font-semibold'
+                            : 'bg-white'
+                        }`}
+                      >
+                        전체
+                      </button>
+
+                      {filteredCompanyOptions.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-slate-500">
+                          검색 결과가 없습니다.
+                        </div>
+                      ) : (
+                        filteredCompanyOptions.map((company) => (
+                          <button
+                            key={company.id}
+                            type="button"
+                            onClick={() => handleCompanySelect(company)}
+                            className={`block w-full px-4 py-3 text-left text-sm text-black hover:bg-slate-100 ${
+                              String(selectedCompanyId) === String(company.id)
+                                ? 'bg-slate-100 font-semibold'
+                                : 'bg-white'
+                            }`}
+                          >
+                            {getCompanyName(company)}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
                   고객담당자
                 </label>
+
                 <select
                   value={selectedContactId}
-                  onChange={(e) => setSelectedContactId(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-black bg-white"
+                  onChange={(e) => {
+                    setSelectedContactId(e.target.value)
+                    setSelectedVisitor('all')
+                    setHasSearched(false)
+                  }}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-black"
                 >
                   <option value="all">전체</option>
+
                   {filteredContacts.map((contact) => (
                     <option key={contact.id} value={String(contact.id)}>
                       {getContactName(contact)}
@@ -351,15 +541,20 @@ export default function VisitHistoryPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
                   영업담당자
                 </label>
+
                 <select
                   value={selectedVisitor}
-                  onChange={(e) => setSelectedVisitor(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-black bg-white"
+                  onChange={(e) => {
+                    setSelectedVisitor(e.target.value)
+                    setHasSearched(false)
+                  }}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-black"
                 >
                   <option value="all">전체</option>
+
                   {visitorOptions.map((visitor) => (
                     <option key={visitor} value={visitor}>
                       {visitor}
@@ -386,13 +581,11 @@ export default function VisitHistoryPage() {
             )}
           </section>
 
-          <section className="rounded-3xl bg-white shadow-sm border border-slate-200 p-8">
-            <div className="flex items-center justify-between mb-6">
+          <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-slate-900">조회 결과</h2>
               <span className="text-sm text-slate-500">
-                {sidebarMode === 'sales'
-                  ? '행을 클릭하면 방문일지 작성 화면으로 이동합니다.'
-                  : '행을 클릭하면 방문일지 상세 팝업이 열립니다.'}
+                방문일자 최신순으로 정렬됩니다.
               </span>
             </div>
 
@@ -417,6 +610,7 @@ export default function VisitHistoryPage() {
                     </th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {!hasSearched ? (
                     <tr>
@@ -446,7 +640,7 @@ export default function VisitHistoryPage() {
                         <tr
                           key={visit.id}
                           onClick={() => handleRowClick(visit)}
-                          className="cursor-pointer hover:bg-blue-50 transition"
+                          className="cursor-pointer transition hover:bg-blue-50"
                         >
                           <td className="border border-slate-300 px-4 py-3 text-black">
                             {getCompanyName(company)}
@@ -478,7 +672,10 @@ export default function VisitHistoryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-6xl rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <h3 className="text-xl font-bold text-slate-900">방문일지 상세</h3>
+              <h3 className="text-xl font-bold text-slate-900">
+                방문일지 상세
+              </h3>
+
               <button
                 type="button"
                 onClick={closeModal}
@@ -489,28 +686,41 @@ export default function VisitHistoryPage() {
             </div>
 
             <div className="space-y-5 px-6 py-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <ReadItem
                   label="고객사"
                   value={getCompanyName(
                     companyMap.get(
-                      String(selectedVisit.company_id || selectedVisit.customer_id || '')
+                      String(
+                        selectedVisit.company_id ||
+                          selectedVisit.customer_id ||
+                          ''
+                      )
                     )
                   )}
                 />
+
                 <ReadItem
                   label="고객담당자"
                   value={getContactName(
                     contactMap.get(String(selectedVisit.contact_id || ''))
                   )}
                 />
+
                 <ReadItem label="방문자" value={getVisitorName(selectedVisit)} />
-                <ReadItem label="방문일자" value={formatDate(selectedVisit.visit_date)} />
+
+                <ReadItem
+                  label="방문일자"
+                  value={formatDate(selectedVisit.visit_date)}
+                />
               </div>
 
               <ReadBlock label="방문목적" value={getVisitPurpose(selectedVisit)} />
               <ReadBlock label="상담내용" value={selectedVisit.discussion || ''} />
-              <ReadBlock label="후속조치" value={selectedVisit.follow_up_action || ''} />
+              <ReadBlock
+                label="후속조치"
+                value={selectedVisit.follow_up_action || ''}
+              />
             </div>
 
             <div className="flex justify-end border-t border-slate-200 px-6 py-4">
@@ -533,7 +743,7 @@ function ReadItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
       <div className="text-sm font-semibold text-slate-600">{label}</div>
-      <div className="mt-1 text-black whitespace-pre-wrap">{value || '-'}</div>
+      <div className="mt-1 whitespace-pre-wrap text-black">{value || '-'}</div>
     </div>
   )
 }

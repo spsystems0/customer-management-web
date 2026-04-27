@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, Suspense, useEffect, useState } from 'react'
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
@@ -35,6 +35,9 @@ export default function VisitsPage() {
 }
 
 function VisitsPageContent() {
+  const loadCompanyListRef = useRef<HTMLDivElement | null>(null)
+  const formCompanyListRef = useRef<HTMLDivElement | null>(null)
+
   const [companies, setCompanies] = useState<Company[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [visitOptions, setVisitOptions] = useState<VisitOption[]>([])
@@ -44,6 +47,12 @@ function VisitsPageContent() {
 
   const [selectedLoadCompanyId, setSelectedLoadCompanyId] = useState('')
   const [selectedVisitId, setSelectedVisitId] = useState('')
+
+  const [loadCompanySearchText, setLoadCompanySearchText] = useState('')
+  const [showLoadCompanyList, setShowLoadCompanyList] = useState(false)
+
+  const [formCompanySearchText, setFormCompanySearchText] = useState('')
+  const [showFormCompanyList, setShowFormCompanyList] = useState(false)
 
   const [editingId, setEditingId] = useState<number | null>(null)
 
@@ -88,25 +97,90 @@ function VisitsPageContent() {
   }, [])
 
   useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+
+      if (
+        loadCompanyListRef.current &&
+        !loadCompanyListRef.current.contains(target)
+      ) {
+        setShowLoadCompanyList(false)
+      }
+
+      if (
+        formCompanyListRef.current &&
+        !formCompanyListRef.current.contains(target)
+      ) {
+        setShowFormCompanyList(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [])
+
+  const filteredLoadCompanies = useMemo(() => {
+    const searchText = loadCompanySearchText.trim().toLowerCase()
+
+    if (!searchText) return companies
+
+    return companies.filter((company) =>
+      company.customer_name.toLowerCase().includes(searchText)
+    )
+  }, [companies, loadCompanySearchText])
+
+  const filteredFormCompanies = useMemo(() => {
+    const searchText = formCompanySearchText.trim().toLowerCase()
+
+    if (!searchText) return companies
+
+    return companies.filter((company) =>
+      company.customer_name.toLowerCase().includes(searchText)
+    )
+  }, [companies, formCompanySearchText])
+
+  const getCompanyNameById = (companyId: string | number | null | undefined) => {
+    if (!companyId) return ''
+
+    const company = companies.find((item) => String(item.id) === String(companyId))
+    return company?.customer_name || ''
+  }
+
+  const fetchContactsByCompanyId = async (companyId: string) => {
+    if (!companyId) {
+      setContacts([])
+      setSelectedContactId('')
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('id, name')
+      .eq('company_id', Number(companyId))
+      .order('print_order', { ascending: true })
+      .order('name', { ascending: true })
+
+    if (error) {
+      setMessage(`담당자 목록 조회 실패: ${error.message}`)
+      return
+    }
+
+    setContacts(data || [])
+  }
+
+  useEffect(() => {
     const fetchContactsByCompany = async () => {
       setContacts([])
       setSelectedContactId('')
 
       if (!selectedCompanyId) return
 
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('id, name')
-        .eq('company_id', Number(selectedCompanyId))
-        .order('print_order', { ascending: true })
-        .order('name', { ascending: true })
-
-      if (error) {
-        setMessage(`담당자 목록 조회 실패: ${error.message}`)
-        return
-      }
-
-      setContacts(data || [])
+      await fetchContactsByCompanyId(selectedCompanyId)
     }
 
     fetchContactsByCompany()
@@ -143,6 +217,11 @@ function VisitsPageContent() {
   }, [selectedLoadCompanyId])
 
   const refreshVisitOptions = async (companyId: string) => {
+    if (!companyId) {
+      setVisitOptions([])
+      return
+    }
+
     const { data, error } = await supabase
       .from('visit_logs')
       .select('id, visit_date, purpose')
@@ -160,8 +239,44 @@ function VisitsPageContent() {
     setVisitOptions(formatted)
   }
 
+  const handleLoadCompanyInputChange = (value: string) => {
+    setLoadCompanySearchText(value)
+    setSelectedLoadCompanyId('')
+    setSelectedVisitId('')
+    setVisitOptions([])
+    setShowLoadCompanyList(true)
+    setMessage('')
+  }
+
+  const handleLoadCompanySelect = (company: Company) => {
+    setSelectedLoadCompanyId(String(company.id))
+    setLoadCompanySearchText(company.customer_name)
+    setSelectedVisitId('')
+    setShowLoadCompanyList(false)
+    setMessage('')
+  }
+
+  const handleFormCompanyInputChange = (value: string) => {
+    setFormCompanySearchText(value)
+    setSelectedCompanyId('')
+    setSelectedContactId('')
+    setContacts([])
+    setShowFormCompanyList(true)
+    setMessage('')
+  }
+
+  const handleFormCompanySelect = (company: Company) => {
+    setSelectedCompanyId(String(company.id))
+    setFormCompanySearchText(company.customer_name)
+    setSelectedContactId('')
+    setShowFormCompanyList(false)
+    setMessage('')
+  }
+
   const loadVisitById = async (visitId: string | number) => {
     setMessage('')
+    setShowLoadCompanyList(false)
+    setShowFormCompanyList(false)
 
     const { data, error } = await supabase
       .from('visit_logs')
@@ -183,9 +298,13 @@ function VisitsPageContent() {
       return
     }
 
+    const companyName = getCompanyNameById(data.company_id)
+
     setEditingId(data.id)
     setSelectedLoadCompanyId(String(data.company_id))
+    setLoadCompanySearchText(companyName)
     setSelectedCompanyId(String(data.company_id))
+    setFormCompanySearchText(companyName)
     setVisitorName(data.visitor_name || '')
     setVisitDate(data.visit_date || '')
     setPurpose(data.purpose || '')
@@ -218,8 +337,12 @@ function VisitsPageContent() {
       const visitor = searchParams.get('visitor')
 
       if (companyId) {
+        const companyName = getCompanyNameById(companyId)
+
         setSelectedLoadCompanyId(companyId)
+        setLoadCompanySearchText(companyName)
         setSelectedCompanyId(companyId)
+        setFormCompanySearchText(companyName)
       }
 
       if (visitor) {
@@ -249,48 +372,52 @@ function VisitsPageContent() {
       }
     }
 
-    applyParams()
-  }, [searchParams])
+    if (companies.length > 0) {
+      applyParams()
+    }
+  }, [searchParams, companies])
 
   const resetForm = () => {
     setEditingId(null)
     setSelectedVisitId('')
+
     setSelectedCompanyId('')
     setSelectedContactId('')
+    setFormCompanySearchText('')
+    setShowLoadCompanyList(false)
+    setShowFormCompanyList(false)
+
     setVisitorName('')
     setVisitDate('')
     setPurpose('')
     setDiscussion('')
     setFollowUpAction('')
+
     setContacts([])
     setMessage('')
   }
 
   const handleNewEntry = async () => {
     const currentLoadCompanyId = selectedLoadCompanyId
+    const currentLoadCompanyName = loadCompanySearchText
+
     resetForm()
 
     if (currentLoadCompanyId) {
       setSelectedCompanyId(currentLoadCompanyId)
+      setFormCompanySearchText(currentLoadCompanyName)
 
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('id, name')
-        .eq('company_id', Number(currentLoadCompanyId))
-        .order('print_order', { ascending: true })
-        .order('name', { ascending: true })
-
-      if (!error) {
-        setContacts(data || [])
-      }
+      await fetchContactsByCompanyId(currentLoadCompanyId)
     }
   }
 
   const handleLoadVisit = async () => {
     setMessage('')
+    setShowLoadCompanyList(false)
+    setShowFormCompanyList(false)
 
     if (!selectedLoadCompanyId) {
-      setMessage('고객사를 선택해 주세요.')
+      setMessage('고객사를 목록에서 선택해 주세요.')
       return
     }
 
@@ -305,9 +432,11 @@ function VisitsPageContent() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setMessage('')
+    setShowLoadCompanyList(false)
+    setShowFormCompanyList(false)
 
     if (!selectedCompanyId) {
-      setMessage('고객사를 선택해 주세요.')
+      setMessage('고객사를 목록에서 선택해 주세요.')
       return
     }
 
@@ -350,11 +479,14 @@ function VisitsPageContent() {
     }
 
     setSelectedLoadCompanyId(selectedCompanyId)
+    setLoadCompanySearchText(formCompanySearchText)
     await refreshVisitOptions(selectedCompanyId)
   }
 
   const handleDelete = async () => {
     setMessage('')
+    setShowLoadCompanyList(false)
+    setShowFormCompanyList(false)
 
     if (!editingId) {
       setMessage('삭제할 방문일지를 먼저 불러와 주세요.')
@@ -375,9 +507,11 @@ function VisitsPageContent() {
     }
 
     const currentCompanyId = selectedCompanyId
+    const currentCompanyName = formCompanySearchText
 
     resetForm()
     setSelectedLoadCompanyId(currentCompanyId)
+    setLoadCompanySearchText(currentCompanyName)
 
     if (currentCompanyId) {
       await refreshVisitOptions(currentCompanyId)
@@ -404,6 +538,7 @@ function VisitsPageContent() {
             <h1 className="text-2xl font-bold text-slate-800">
               방문일지 등록 / 수정 / 삭제
             </h1>
+
             <p className="mt-2 text-slate-600">
               고객사와 방문일지를 선택해 기존 정보를 불러오거나 신규 등록할 수 있습니다.
             </p>
@@ -414,23 +549,43 @@ function VisitsPageContent() {
               </h2>
 
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
-                <select
-                  value={selectedLoadCompanyId}
-                  onChange={(e) => setSelectedLoadCompanyId(e.target.value)}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                >
-                  <option value="">고객사를 선택하세요</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.customer_name}
-                    </option>
-                  ))}
-                </select>
+                <div ref={loadCompanyListRef} className="relative">
+                  <input
+                    type="text"
+                    value={loadCompanySearchText}
+                    onChange={(e) => handleLoadCompanyInputChange(e.target.value)}
+                    onFocus={() => setShowLoadCompanyList(true)}
+                    placeholder="고객사를 선택하세요"
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
+                  />
+
+                  {showLoadCompanyList && (
+                    <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+                      {filteredLoadCompanies.length > 0 ? (
+                        filteredLoadCompanies.map((company) => (
+                          <button
+                            key={company.id}
+                            type="button"
+                            onClick={() => handleLoadCompanySelect(company)}
+                            className="block w-full px-4 py-3 text-left text-black hover:bg-blue-50"
+                          >
+                            {company.customer_name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-slate-500">
+                          검색된 고객사가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <select
                   value={selectedVisitId}
                   onChange={(e) => setSelectedVisitId(e.target.value)}
                   className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                  disabled={!selectedLoadCompanyId}
                 >
                   <option value="">방문일지를 선택하세요</option>
                   {visitOptions.map((visit) => (
@@ -460,23 +615,43 @@ function VisitsPageContent() {
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                >
-                  <option value="">고객사를 선택하세요</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.customer_name}
-                    </option>
-                  ))}
-                </select>
+                <div ref={formCompanyListRef} className="relative">
+                  <input
+                    type="text"
+                    value={formCompanySearchText}
+                    onChange={(e) => handleFormCompanyInputChange(e.target.value)}
+                    onFocus={() => setShowFormCompanyList(true)}
+                    placeholder="고객사를 선택하세요"
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
+                  />
+
+                  {showFormCompanyList && (
+                    <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+                      {filteredFormCompanies.length > 0 ? (
+                        filteredFormCompanies.map((company) => (
+                          <button
+                            key={company.id}
+                            type="button"
+                            onClick={() => handleFormCompanySelect(company)}
+                            className="block w-full px-4 py-3 text-left text-black hover:bg-blue-50"
+                          >
+                            {company.customer_name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-slate-500">
+                          검색된 고객사가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <select
                   value={selectedContactId}
                   onChange={(e) => setSelectedContactId(e.target.value)}
                   className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                  disabled={!selectedCompanyId}
                 >
                   <option value="">담당자를 선택하세요</option>
                   {contacts.map((contact) => (
@@ -548,7 +723,7 @@ function VisitsPageContent() {
               </div>
 
               {message && (
-                <div className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap">
+                <div className="whitespace-pre-wrap rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
                   {message}
                 </div>
               )}

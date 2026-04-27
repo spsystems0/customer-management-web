@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
 
@@ -33,6 +33,9 @@ type Contact = {
 }
 
 export default function ContactsPage() {
+  const loadCompanyListRef = useRef<HTMLDivElement | null>(null)
+  const formCompanyListRef = useRef<HTMLDivElement | null>(null)
+
   const [companies, setCompanies] = useState<Company[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
 
@@ -42,6 +45,12 @@ export default function ContactsPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const [selectedContactId, setSelectedContactId] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
+
+  const [loadCompanySearchText, setLoadCompanySearchText] = useState('')
+  const [showLoadCompanyList, setShowLoadCompanyList] = useState(false)
+
+  const [formCompanySearchText, setFormCompanySearchText] = useState('')
+  const [showFormCompanyList, setShowFormCompanyList] = useState(false)
 
   const [companyId, setCompanyId] = useState('')
   const [name, setName] = useState('')
@@ -97,6 +106,34 @@ export default function ContactsPage() {
   }, [])
 
   useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+
+      if (
+        loadCompanyListRef.current &&
+        !loadCompanyListRef.current.contains(target)
+      ) {
+        setShowLoadCompanyList(false)
+      }
+
+      if (
+        formCompanyListRef.current &&
+        !formCompanyListRef.current.contains(target)
+      ) {
+        setShowFormCompanyList(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [])
+
+  useEffect(() => {
     const loadContacts = async () => {
       setSelectedContactId('')
       setContacts([])
@@ -147,6 +184,26 @@ export default function ContactsPage() {
     loadContacts()
   }, [selectedCompanyId])
 
+  const filteredLoadCompanies = useMemo(() => {
+    const searchText = loadCompanySearchText.trim().toLowerCase()
+
+    if (!searchText) return companies
+
+    return companies.filter((company) =>
+      company.customer_name.toLowerCase().includes(searchText)
+    )
+  }, [companies, loadCompanySearchText])
+
+  const filteredFormCompanies = useMemo(() => {
+    const searchText = formCompanySearchText.trim().toLowerCase()
+
+    if (!searchText) return companies
+
+    return companies.filter((company) =>
+      company.customer_name.toLowerCase().includes(searchText)
+    )
+  }, [companies, formCompanySearchText])
+
   const refreshContacts = async (targetCompanyId: string) => {
     if (!targetCompanyId) {
       setContacts([])
@@ -188,6 +245,12 @@ export default function ContactsPage() {
     setSelectedContactId('')
     setEditingId(null)
 
+    setLoadCompanySearchText('')
+    setShowLoadCompanyList(false)
+
+    setFormCompanySearchText('')
+    setShowFormCompanyList(false)
+
     setCompanyId('')
     setName('')
     setPosition('')
@@ -212,8 +275,41 @@ export default function ContactsPage() {
     setMessage('')
   }
 
+  const handleLoadCompanyInputChange = (value: string) => {
+    setLoadCompanySearchText(value)
+    setSelectedCompanyId('')
+    setSelectedContactId('')
+    setContacts([])
+    setMessage('')
+    setShowLoadCompanyList(true)
+  }
+
+  const handleLoadCompanySelect = (company: Company) => {
+    setSelectedCompanyId(String(company.id))
+    setLoadCompanySearchText(company.customer_name)
+    setSelectedContactId('')
+    setMessage('')
+    setShowLoadCompanyList(false)
+  }
+
+  const handleFormCompanyInputChange = (value: string) => {
+    setFormCompanySearchText(value)
+    setCompanyId('')
+    setMessage('')
+    setShowFormCompanyList(true)
+  }
+
+  const handleFormCompanySelect = (company: Company) => {
+    setCompanyId(String(company.id))
+    setFormCompanySearchText(company.customer_name)
+    setMessage('')
+    setShowFormCompanyList(false)
+  }
+
   const handleLoadContact = () => {
     setMessage('')
+    setShowLoadCompanyList(false)
+    setShowFormCompanyList(false)
 
     if (!selectedContactId) {
       setMessage('불러올 담당자를 선택해 주세요.')
@@ -229,8 +325,13 @@ export default function ContactsPage() {
       return
     }
 
+    const company = companies.find(
+      (item) => String(item.id) === String(contact.company_id)
+    )
+
     setEditingId(contact.id)
     setCompanyId(String(contact.company_id))
+    setFormCompanySearchText(company?.customer_name || '')
     setName(contact.name || '')
     setPosition(contact.position || '')
     setWorkLocation(contact.work_location || '')
@@ -256,11 +357,13 @@ export default function ContactsPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setMessage('')
+    setShowLoadCompanyList(false)
+    setShowFormCompanyList(false)
 
     const trimmedName = name.trim()
 
     if (!companyId) {
-      setMessage('고객사를 선택해 주세요.')
+      setMessage('고객사를 목록에서 선택해 주세요.')
       return
     }
 
@@ -287,12 +390,12 @@ export default function ContactsPage() {
     }
 
     if (duplicateData && duplicateData.length > 0) {
-        const warningMessage =
-          '같은 고객사에 동일한 담당자명이 이미 등록되어 있습니다.\n중복 입력 여부를 확인해 주세요.'
+      const warningMessage =
+        '같은 고객사에 동일한 담당자명이 이미 등록되어 있습니다.\n중복 입력 여부를 확인해 주세요.'
 
-        alert(warningMessage)
-        setMessage('같은 고객사에 동일한 담당자명이 이미 등록되어 있습니다.')
-        return
+      alert(warningMessage)
+      setMessage('같은 고객사에 동일한 담당자명이 이미 등록되어 있습니다.')
+      return
     }
 
     const payload = {
@@ -354,6 +457,8 @@ export default function ContactsPage() {
 
   const handleDelete = async () => {
     setMessage('')
+    setShowLoadCompanyList(false)
+    setShowFormCompanyList(false)
 
     if (!editingId) {
       setMessage('삭제할 담당자를 먼저 불러와 주세요.')
@@ -419,6 +524,7 @@ export default function ContactsPage() {
             <h1 className="text-2xl font-bold text-slate-800">
               고객담당자 등록 / 수정 / 삭제
             </h1>
+
             <p className="mt-2 text-slate-600">
               고객사와 담당자를 선택해 기존 정보를 불러오거나 신규 등록할 수 있습니다.
             </p>
@@ -429,18 +535,39 @@ export default function ContactsPage() {
               </h2>
 
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                >
-                  <option value="">고객사를 선택하세요</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.customer_name}
-                    </option>
-                  ))}
-                </select>
+                <div ref={loadCompanyListRef} className="relative">
+                  <input
+                    type="text"
+                    value={loadCompanySearchText}
+                    onChange={(e) =>
+                      handleLoadCompanyInputChange(e.target.value)
+                    }
+                    onFocus={() => setShowLoadCompanyList(true)}
+                    placeholder="고객사를 선택하세요"
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
+                  />
+
+                  {showLoadCompanyList && (
+                    <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+                      {filteredLoadCompanies.length > 0 ? (
+                        filteredLoadCompanies.map((company) => (
+                          <button
+                            key={company.id}
+                            type="button"
+                            onClick={() => handleLoadCompanySelect(company)}
+                            className="block w-full px-4 py-3 text-left text-black hover:bg-blue-50"
+                          >
+                            {company.customer_name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-slate-500">
+                          검색된 고객사가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <select
                   value={selectedContactId}
@@ -453,6 +580,7 @@ export default function ContactsPage() {
                       ? '담당자 불러오는 중...'
                       : '담당자를 선택하세요'}
                   </option>
+
                   {contacts.map((contact) => (
                     <option key={contact.id} value={contact.id}>
                       {contact.name}
@@ -479,19 +607,40 @@ export default function ContactsPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="mt-8 grid gap-4 md:grid-cols-2">
-              <select
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                required
-              >
-                <option value="">고객사를 선택하세요 *</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.customer_name}
-                  </option>
-                ))}
-              </select>
+              <div ref={formCompanyListRef} className="relative">
+                <input
+                  type="text"
+                  value={formCompanySearchText}
+                  onChange={(e) =>
+                    handleFormCompanyInputChange(e.target.value)
+                  }
+                  onFocus={() => setShowFormCompanyList(true)}
+                  placeholder="고객사를 선택하세요 *"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
+                  required
+                />
+
+                {showFormCompanyList && (
+                  <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+                    {filteredFormCompanies.length > 0 ? (
+                      filteredFormCompanies.map((company) => (
+                        <button
+                          key={company.id}
+                          type="button"
+                          onClick={() => handleFormCompanySelect(company)}
+                          className="block w-full px-4 py-3 text-left text-black hover:bg-emerald-50"
+                        >
+                          {company.customer_name}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-slate-500">
+                        검색된 고객사가 없습니다.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <input
                 value={name}
@@ -557,8 +706,9 @@ export default function ContactsPage() {
                 className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 md:col-span-2"
               />
 
-              <div className="md:col-span-2 mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:col-span-2">
                 <h2 className="text-lg font-semibold text-slate-800">민감정보</h2>
+
                 <p className="mt-1 text-sm text-slate-600">
                   민감정보 출력 포함 체크 시 고객관리카드 출력 시 함께 표시됩니다.
                 </p>
@@ -631,7 +781,7 @@ export default function ContactsPage() {
                 </div>
               </div>
 
-              <div className="md:col-span-2 mt-4 flex gap-3">
+              <div className="mt-4 flex gap-3 md:col-span-2">
                 <button
                   type="submit"
                   className="rounded-xl bg-emerald-700 px-6 py-3 font-medium text-white hover:bg-emerald-800"
@@ -667,7 +817,7 @@ export default function ContactsPage() {
               </div>
 
               {message && (
-                <div className="md:col-span-2 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                <div className="whitespace-pre-wrap rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 md:col-span-2">
                   {message}
                 </div>
               )}

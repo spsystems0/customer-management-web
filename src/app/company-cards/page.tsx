@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
 
@@ -46,18 +46,41 @@ type CustomerCategoryCode = {
   code_name: string
 }
 
-
-
 export default function CompanyCardsPage() {
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('guest')
+
   const [companies, setCompanies] = useState<Company[]>([])
   const [categoryCodes, setCategoryCodes] = useState<CustomerCategoryCode[]>([])
+
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+
+  const [companySearchText, setCompanySearchText] = useState('')
+  const [showCompanyList, setShowCompanyList] = useState(false)
+  const companySearchBoxRef = useRef<HTMLDivElement | null>(null)
+
   const [contacts, setContacts] = useState<Contact[]>([])
   const [visitLogs, setVisitLogs] = useState<VisitLog[]>([])
+
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        companySearchBoxRef.current &&
+        !companySearchBoxRef.current.contains(event.target as Node)
+      ) {
+        setShowCompanyList(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   useEffect(() => {
     const initialize = async () => {
@@ -111,6 +134,32 @@ export default function CompanyCardsPage() {
     initialize()
   }, [])
 
+  const filteredCompanies = companies.filter((company) =>
+    company.customer_name
+      .toLowerCase()
+      .includes(companySearchText.trim().toLowerCase())
+  )
+
+  const handleCompanyInputChange = (value: string) => {
+    setCompanySearchText(value)
+    setSelectedCompanyId('')
+    setSelectedCompany(null)
+    setContacts([])
+    setVisitLogs([])
+    setMessage('')
+    setShowCompanyList(true)
+  }
+
+  const handleCompanySelect = (company: Company) => {
+    setSelectedCompanyId(String(company.id))
+    setCompanySearchText(company.customer_name)
+    setSelectedCompany(null)
+    setContacts([])
+    setVisitLogs([])
+    setMessage('')
+    setShowCompanyList(false)
+  }
+
   const handleSearch = async () => {
     setMessage('')
     setSelectedCompany(null)
@@ -118,7 +167,7 @@ export default function CompanyCardsPage() {
     setVisitLogs([])
 
     if (!selectedCompanyId) {
-      setMessage('고객사를 선택해 주세요.')
+      setMessage('고객사를 목록에서 선택해 주세요.')
       return
     }
 
@@ -182,10 +231,10 @@ export default function CompanyCardsPage() {
       alert('먼저 고객사를 조회해 주세요.')
       return
     }
+
     window.print()
   }
 
- 
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100">
@@ -202,24 +251,46 @@ export default function CompanyCardsPage() {
         <section className="flex-1 px-6 py-10">
           <div className="mx-auto max-w-7xl space-y-6">
             <div className="rounded-2xl bg-white p-8 shadow print:hidden">
-              <h1 className="text-2xl font-bold text-black">고객사관리카드 조회</h1>
+              <h1 className="text-2xl font-bold text-black">
+                고객사관리카드 조회
+              </h1>
+
               <p className="mt-2 text-black">
-                고객사를 선택하여 고객사관리카드를 조회하고 출력합니다.
+                고객사명을 입력하여 검색한 후 고객사를 선택하고 조회합니다.
               </p>
 
               <div className="mt-8 grid gap-4 md:grid-cols-[1fr_auto_auto]">
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                >
-                  <option value="">고객사를 선택하세요</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.customer_name}
-                    </option>
-                  ))}
-                </select>
+              <div ref={companySearchBoxRef} className="relative">
+                <input
+                  type="text"
+                  value={companySearchText}
+                  onChange={(e) => handleCompanyInputChange(e.target.value)}
+                  onFocus={() => setShowCompanyList(true)}
+                  placeholder="고객사를 선택하세요"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                />
+
+                {showCompanyList && (
+                  <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+                    {filteredCompanies.length > 0 ? (
+                      filteredCompanies.map((company) => (
+                        <button
+                          key={company.id}
+                          type="button"
+                          onClick={() => handleCompanySelect(company)}
+                          className="block w-full px-4 py-3 text-left text-black hover:bg-emerald-50"
+                        >
+                          {company.customer_name}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-slate-500">
+                        검색된 고객사가 없습니다.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>                
 
                 <button
                   type="button"
@@ -239,7 +310,7 @@ export default function CompanyCardsPage() {
               </div>
 
               {message && (
-                <div className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-black whitespace-pre-wrap">
+                <div className="mt-4 whitespace-pre-wrap rounded-xl bg-slate-100 px-4 py-3 text-sm text-black">
                   {message}
                 </div>
               )}
@@ -247,12 +318,17 @@ export default function CompanyCardsPage() {
 
             {selectedCompany && (
               <div className="rounded-2xl bg-white p-8 shadow print:hidden">
-                <h2 className="text-xl font-bold text-black">고객사관리카드 미리보기</h2>
+                <h2 className="text-xl font-bold text-black">
+                  고객사관리카드 미리보기
+                </h2>
 
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
                   <InfoItem
                     label="고객분류코드"
-                    value={getCategoryCodeName(selectedCompany.customer_category_code, categoryCodes)}
+                    value={getCategoryCodeName(
+                      selectedCompany.customer_category_code,
+                      categoryCodes
+                    )}
                   />
                   <InfoItem label="고객사명" value={selectedCompany.customer_name} />
                   <InfoItem label="사업자번호" value={selectedCompany.business_number} />
@@ -302,13 +378,19 @@ export default function CompanyCardsPage() {
                         {contacts.length > 0 ? (
                           contacts.map((contact) => (
                             <tr key={contact.id}>
-                              <td className="border px-3 py-2 align-top">{contact.name || ''}</td>
+                              <td className="border px-3 py-2 align-top">
+                                {contact.name || ''}
+                              </td>
                               <td className="border px-3 py-2 align-top">
                                 {contact.position || ''}
                               </td>
-                              <td className="border px-3 py-2 align-top">{contact.phone || ''}</td>
-                              <td className="border px-3 py-2 align-top">{contact.email || ''}</td>
-                              <td className="border px-3 py-2 align-top whitespace-pre-wrap">
+                              <td className="border px-3 py-2 align-top">
+                                {contact.phone || ''}
+                              </td>
+                              <td className="border px-3 py-2 align-top">
+                                {contact.email || ''}
+                              </td>
+                              <td className="whitespace-pre-wrap border px-3 py-2 align-top">
                                 {contact.main_role || ''}
                               </td>
                             </tr>
@@ -366,7 +448,10 @@ export default function CompanyCardsPage() {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={4} className="border px-3 py-6 text-center text-slate-500">
+                            <td
+                              colSpan={4}
+                              className="border px-3 py-6 text-center text-slate-500"
+                            >
                               방문이력이 없습니다.
                             </td>
                           </tr>
@@ -396,7 +481,10 @@ export default function CompanyCardsPage() {
                       <tr>
                         <th className="print-label">고객분류코드</th>
                         <td className="print-value">
-                          {getCategoryCodeName(selectedCompany.customer_category_code, categoryCodes)}
+                          {getCategoryCodeName(
+                            selectedCompany.customer_category_code,
+                            categoryCodes
+                          )}
                         </td>
                         <th className="print-label">고객사명</th>
                         <td className="print-value" colSpan={3}>
@@ -405,7 +493,9 @@ export default function CompanyCardsPage() {
                       </tr>
                       <tr>
                         <th className="print-label">사업자번호</th>
-                        <td className="print-value">{selectedCompany.business_number || ''}</td>
+                        <td className="print-value">
+                          {selectedCompany.business_number || ''}
+                        </td>
                         <th className="print-label">업종</th>
                         <td className="print-value" colSpan={3}>
                           {selectedCompany.industry || ''}
@@ -413,7 +503,9 @@ export default function CompanyCardsPage() {
                       </tr>
                       <tr>
                         <th className="print-label">매출금액</th>
-                        <td className="print-value">{selectedCompany.revenue || ''}</td>
+                        <td className="print-value">
+                          {selectedCompany.revenue || ''}
+                        </td>
                         <th className="print-label">직원 수</th>
                         <td className="print-value">
                           {selectedCompany.employee_count !== null
@@ -437,7 +529,9 @@ export default function CompanyCardsPage() {
                           {selectedCompany.homepage || ''}
                         </td>
                         <th className="print-label">영업담당</th>
-                        <td className="print-value">{selectedCompany.sales_owner || ''}</td>
+                        <td className="print-value">
+                          {selectedCompany.sales_owner || ''}
+                        </td>
                       </tr>
                       <tr className="print-row-lg">
                         <th className="print-label">주력 제품</th>
@@ -481,7 +575,9 @@ export default function CompanyCardsPage() {
                             <td>{contact.position || ''}</td>
                             <td>{contact.phone || ''}</td>
                             <td>{contact.email || ''}</td>
-                            <td className="whitespace-pre-wrap">{contact.main_role || ''}</td>
+                            <td className="whitespace-pre-wrap">
+                              {contact.main_role || ''}
+                            </td>
                           </tr>
                         ))
                       ) : (
@@ -567,6 +663,7 @@ function formatYearMonth(dateValue: string | null) {
   if (!dateValue) return ''
 
   const date = new Date(dateValue)
+
   if (Number.isNaN(date.getTime())) return ''
 
   const year = date.getFullYear()
@@ -580,6 +677,8 @@ function getCategoryCodeName(
   categoryCodes: CustomerCategoryCode[]
 ) {
   if (!code) return ''
+
   const found = categoryCodes.find((item) => item.code === code)
+
   return found?.code_name || ''
 }

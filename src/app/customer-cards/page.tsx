@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
 
@@ -43,6 +43,8 @@ type VisitLog = {
 }
 
 export default function CustomerCardsPage() {
+  const companyListRef = useRef<HTMLDivElement | null>(null)
+
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('guest')
 
   const [companies, setCompanies] = useState<Company[]>([])
@@ -50,6 +52,9 @@ export default function CustomerCardsPage() {
 
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const [selectedContactId, setSelectedContactId] = useState('')
+
+  const [companySearchText, setCompanySearchText] = useState('')
+  const [showCompanyList, setShowCompanyList] = useState(false)
 
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [visitLogs, setVisitLogs] = useState<VisitLog[]>([])
@@ -82,6 +87,25 @@ export default function CustomerCardsPage() {
     }
 
     initialize()
+  }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (
+        companyListRef.current &&
+        !companyListRef.current.contains(event.target as Node)
+      ) {
+        setShowCompanyList(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
   }, [])
 
   useEffect(() => {
@@ -139,13 +163,40 @@ export default function CustomerCardsPage() {
     loadContacts()
   }, [selectedCompanyId])
 
+  const filteredCompanies = companies.filter((company) =>
+    company.customer_name
+      .toLowerCase()
+      .includes(companySearchText.trim().toLowerCase())
+  )
+
+  const handleCompanyInputChange = (value: string) => {
+    setCompanySearchText(value)
+    setSelectedCompanyId('')
+    setSelectedContactId('')
+    setSelectedContact(null)
+    setContacts([])
+    setVisitLogs([])
+    setMessage('')
+    setShowCompanyList(true)
+  }
+
+  const handleCompanySelect = (company: Company) => {
+    setSelectedCompanyId(String(company.id))
+    setCompanySearchText(company.customer_name)
+    setSelectedContactId('')
+    setSelectedContact(null)
+    setVisitLogs([])
+    setMessage('')
+    setShowCompanyList(false)
+  }
+
   const handleSearch = async () => {
     setMessage('')
     setSelectedContact(null)
     setVisitLogs([])
 
     if (!selectedCompanyId) {
-      setMessage('고객사를 선택해 주세요.')
+      setMessage('고객사를 목록에서 선택해 주세요.')
       return
     }
 
@@ -204,7 +255,10 @@ export default function CustomerCardsPage() {
         <section className="flex-1 px-6 py-10">
           <div className="print-area mx-auto max-w-6xl space-y-6">
             <div className="screen-report-wrap rounded-2xl bg-white p-8 shadow print-hide">
-              <h1 className="text-2xl font-bold text-black">고객관리카드 조회</h1>
+              <h1 className="text-2xl font-bold text-black">
+                고객관리카드 조회
+              </h1>
+
               <p className="mt-2 text-black">
                 고객사와 담당자를 선택하여 고객관리카드를 조회하고 출력합니다.
               </p>
@@ -214,22 +268,48 @@ export default function CustomerCardsPage() {
               ) : (
                 <>
                   <div className="mt-8 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
-                    <select
-                      value={selectedCompanyId}
-                      onChange={(e) => setSelectedCompanyId(e.target.value)}
-                      className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                    >
-                      <option value="">고객사를 선택하세요</option>
-                      {companies.map((company) => (
-                        <option key={company.id} value={company.id}>
-                          {company.customer_name}
-                        </option>
-                      ))}
-                    </select>
+                    <div ref={companyListRef} className="relative">
+                      <input
+                        type="text"
+                        value={companySearchText}
+                        onChange={(e) =>
+                          handleCompanyInputChange(e.target.value)
+                        }
+                        onFocus={() => setShowCompanyList(true)}
+                        placeholder="고객사를 선택하세요"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                      />
+
+                      {showCompanyList && (
+                        <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+                          {filteredCompanies.length > 0 ? (
+                            filteredCompanies.map((company) => (
+                              <button
+                                key={company.id}
+                                type="button"
+                                onClick={() => handleCompanySelect(company)}
+                                className="block w-full px-4 py-3 text-left text-black hover:bg-emerald-50"
+                              >
+                                {company.customer_name}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-slate-500">
+                              검색된 고객사가 없습니다.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     <select
                       value={selectedContactId}
-                      onChange={(e) => setSelectedContactId(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedContactId(e.target.value)
+                        setSelectedContact(null)
+                        setVisitLogs([])
+                        setMessage('')
+                      }}
                       className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
                       disabled={!selectedCompanyId || loadingContacts}
                     >
@@ -238,6 +318,7 @@ export default function CustomerCardsPage() {
                           ? '담당자 불러오는 중...'
                           : '담당자를 선택하세요'}
                       </option>
+
                       {contacts.map((contact) => (
                         <option key={contact.id} value={contact.id}>
                           {contact.name}
@@ -273,7 +354,9 @@ export default function CustomerCardsPage() {
 
             {selectedContact && (
               <div className="screen-report-wrap rounded-2xl bg-white p-8 shadow print-hide">
-                <h2 className="text-xl font-bold text-black">고객관리카드 미리보기</h2>
+                <h2 className="text-xl font-bold text-black">
+                  고객관리카드 미리보기
+                </h2>
 
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
                   <InfoItem label="회사명" value={selectedCompanyName} />
@@ -305,11 +388,15 @@ export default function CustomerCardsPage() {
                     />
                     <InfoItem
                       label="결혼유무"
-                      value={showSensitive ? selectedContact.marital_status : ''}
+                      value={
+                        showSensitive ? selectedContact.marital_status : ''
+                      }
                     />
                     <InfoItem
                       label="가족관계"
-                      value={showSensitive ? selectedContact.family_relation : ''}
+                      value={
+                        showSensitive ? selectedContact.family_relation : ''
+                      }
                     />
                     <InfoItem
                       label="학력사항"
@@ -333,13 +420,16 @@ export default function CustomerCardsPage() {
                     <div className="text-sm font-medium text-slate-700">
                       특이사항 및 주요내용
                     </div>
+
                     <div className="mt-2 min-h-[220px] whitespace-pre-wrap rounded-xl border border-slate-200 bg-white px-4 py-4 text-black">
                       {showSensitive ? selectedContact.special_notes || '' : ''}
                     </div>
                   </div>
 
                   <div className="mt-8">
-                    <div className="text-sm font-medium text-slate-700">방문 이력</div>
+                    <div className="text-sm font-medium text-slate-700">
+                      방문 이력
+                    </div>
 
                     {visitLogs.length === 0 ? (
                       <div className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-4 text-black">
@@ -353,6 +443,7 @@ export default function CustomerCardsPage() {
                             <col style={{ width: '12%' }} />
                             <col style={{ width: '76%' }} />
                           </colgroup>
+
                           <thead className="bg-slate-100">
                             <tr>
                               <th className="border border-slate-200 px-3 py-2 text-left">
@@ -366,6 +457,7 @@ export default function CustomerCardsPage() {
                               </th>
                             </tr>
                           </thead>
+
                           <tbody>
                             {visitLogs.map((log) => (
                               <tr key={log.id}>
@@ -375,7 +467,7 @@ export default function CustomerCardsPage() {
                                 <td className="border border-slate-200 px-3 py-2">
                                   {log.visitor_name || ''}
                                 </td>
-                                <td className="border border-slate-200 px-3 py-2 whitespace-pre-wrap">
+                                <td className="whitespace-pre-wrap border border-slate-200 px-3 py-2">
                                   {log.purpose || ''}
                                 </td>
                               </tr>
@@ -403,6 +495,7 @@ export default function CustomerCardsPage() {
                       <col style={{ width: '11%' }} />
                       <col style={{ width: '20%' }} />
                     </colgroup>
+
                     <tbody>
                       <tr>
                         <th className="customer-print-label">회 사 명</th>
@@ -411,35 +504,42 @@ export default function CustomerCardsPage() {
                         <td>{selectedContact.name || ''}</td>
                         <td colSpan={2} rowSpan={5}></td>
                       </tr>
+
                       <tr>
                         <th className="customer-print-label">근 무 지</th>
                         <td>{selectedContact.work_location || ''}</td>
                         <th className="customer-print-label">직 위</th>
                         <td>{selectedContact.position || ''}</td>
                       </tr>
+
                       <tr>
                         <th className="customer-print-label">소 속</th>
                         <td>{selectedContact.department || ''}</td>
                         <th className="customer-print-label">전화번호</th>
                         <td>{selectedContact.phone || ''}</td>
                       </tr>
+
                       <tr>
                         <th className="customer-print-label">부 서</th>
                         <td>{selectedContact.department || ''}</td>
                         <th className="customer-print-label">휴 대 폰</th>
                         <td>{selectedContact.phone || ''}</td>
                       </tr>
+
                       <tr>
                         <th className="customer-print-label">E - Mail</th>
                         <td>{selectedContact.email || ''}</td>
                         <th className="customer-print-label">Fax 번호</th>
                         <td></td>
                       </tr>
+
                       <tr>
                         <th className="customer-print-label">담당업무</th>
                         <td>{selectedContact.main_role || ''}</td>
                         <th className="customer-print-label">근무지(상세)</th>
-                        <td colSpan={3}>{selectedContact.work_location_detail || ''}</td>
+                        <td colSpan={3}>
+                          {selectedContact.work_location_detail || ''}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -454,39 +554,67 @@ export default function CustomerCardsPage() {
                       <col style={{ width: '19%' }} />
                       <col style={{ width: '14%' }} />
                     </colgroup>
+
                     <tbody>
                       <tr>
                         <th className="customer-print-label" rowSpan={4}>
                           고객인적사항
                         </th>
-                        <th className="customer-print-sub-label">생 년 월 일</th>
-                        <td>{showSensitive ? selectedContact.birth_date || '' : ''}</td>
-                        <th className="customer-print-sub-label">성별</th>
-                        <td colSpan={3}>{showSensitive ? selectedContact.gender || '' : ''}</td>
-                      </tr>
-                      <tr>
-                        <th className="customer-print-sub-label">결 혼 유 무</th>
+                        <th className="customer-print-sub-label">
+                          생 년 월 일
+                        </th>
                         <td>
-                          {showSensitive ? selectedContact.marital_status || '' : ''}
+                          {showSensitive ? selectedContact.birth_date || '' : ''}
                         </td>
-                        <th className="customer-print-sub-label">가 족 관 계</th>
+                        <th className="customer-print-sub-label">성별</th>
                         <td colSpan={3}>
-                          {showSensitive ? selectedContact.family_relation || '' : ''}
+                          {showSensitive ? selectedContact.gender || '' : ''}
                         </td>
                       </tr>
+
                       <tr>
-                        <th className="customer-print-sub-label">학 력 사 항</th>
-                        <td>{showSensitive ? selectedContact.education || '' : ''}</td>
-                        <th className="customer-print-sub-label">최종졸업학교</th>
+                        <th className="customer-print-sub-label">
+                          결 혼 유 무
+                        </th>
+                        <td>
+                          {showSensitive
+                            ? selectedContact.marital_status || ''
+                            : ''}
+                        </td>
+                        <th className="customer-print-sub-label">
+                          가 족 관 계
+                        </th>
                         <td colSpan={3}>
-                          {showSensitive ? selectedContact.school_name || '' : ''}
+                          {showSensitive
+                            ? selectedContact.family_relation || ''
+                            : ''}
                         </td>
                       </tr>
+
+                      <tr>
+                        <th className="customer-print-sub-label">
+                          학 력 사 항
+                        </th>
+                        <td>
+                          {showSensitive ? selectedContact.education || '' : ''}
+                        </td>
+                        <th className="customer-print-sub-label">
+                          최종졸업학교
+                        </th>
+                        <td colSpan={3}>
+                          {showSensitive
+                            ? selectedContact.school_name || ''
+                            : ''}
+                        </td>
+                      </tr>
+
                       <tr>
                         <th className="customer-print-sub-label">기 타</th>
                         <td>{showSensitive ? selectedContact.hobby || '' : ''}</td>
                         <th className="customer-print-sub-label">취 미</th>
-                        <td colSpan={3}>{showSensitive ? selectedContact.hobby || '' : ''}</td>
+                        <td colSpan={3}>
+                          {showSensitive ? selectedContact.hobby || '' : ''}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -496,6 +624,7 @@ export default function CustomerCardsPage() {
                       <col style={{ width: '12%' }} />
                       <col style={{ width: '88%' }} />
                     </colgroup>
+
                     <tbody>
                       <tr>
                         <th className="customer-print-label notes-label">
@@ -507,7 +636,9 @@ export default function CustomerCardsPage() {
                         </th>
                         <td className="notes-cell">
                           <div className="notes-content">
-                            {showSensitive ? selectedContact.special_notes || '' : ''}
+                            {showSensitive
+                              ? selectedContact.special_notes || ''
+                              : ''}
                           </div>
                         </td>
                       </tr>
@@ -521,17 +652,20 @@ export default function CustomerCardsPage() {
                       <col style={{ width: '12%' }} />
                       <col style={{ width: '64%' }} />
                     </colgroup>
+
                     <tbody>
                       <tr>
                         <th
                           className="customer-print-label"
-                          rowSpan={visitLogs.length > 0 ? visitLogs.length + 1 : 2}
+                          rowSpan={
+                            visitLogs.length > 0 ? visitLogs.length + 1 : 2
+                          }
                         >
                           방 문 이 력
                         </th>
                         <th className="customer-print-sub-label">방문일자</th>
                         <th className="customer-print-sub-label">방문자</th>
-                        <th className="customer-print-sub-label">방문 목적</th>
+                        <th className="customer-print-sub-label">방문목적</th>
                       </tr>
 
                       {visitLogs.length > 0 ? (
@@ -540,7 +674,7 @@ export default function CustomerCardsPage() {
                             <td>{log.visit_date || ''}</td>
                             <td>{log.visitor_name || ''}</td>
                             <td className="customer-print-multiline">
-                               {log.purpose || ''}
+                              {log.purpose || ''}
                             </td>
                           </tr>
                         ))
@@ -559,6 +693,7 @@ export default function CustomerCardsPage() {
                       <col style={{ width: '12%' }} />
                       <col style={{ width: '88%' }} />
                     </colgroup>
+
                     <tbody>
                       <tr>
                         <th className="customer-print-label">비고</th>
