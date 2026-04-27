@@ -359,11 +359,11 @@ export default function CompanyCardsPage() {
                   <div className="mt-4 overflow-x-auto">
                     <table className="min-w-full table-fixed border border-slate-300 text-sm text-black">
                       <colgroup>
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '16%' }} />
                         <col style={{ width: '18%' }} />
-                        <col style={{ width: '46%' }} />
+                        <col style={{ width: '16%' }} />
+                        <col style={{ width: '12%' }} />
+                        <col style={{ width: '20%' }} />
+                        <col style={{ width: '44%' }} />
                       </colgroup>
                       <thead className="bg-slate-100">
                         <tr>
