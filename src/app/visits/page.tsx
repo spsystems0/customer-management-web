@@ -476,6 +476,7 @@ function VisitsPageContent() {
         return
       }
 
+      alert('방문일지가 저장되었습니다.')
       setMessage('방문일지가 저장되었습니다.')
     }
 
