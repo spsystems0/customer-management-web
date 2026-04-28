@@ -453,7 +453,7 @@ export default function VisitHistoryPage() {
                 </label>
 
                 <div ref={companyDropdownRef} className="relative">
-                  <div className="flex w-full overflow-hidden rounded-2xl border border-slate-300 bg-white">
+                  <div className="flex h-12 w-full overflow-hidden rounded-2xl border border-slate-300 bg-white">
                     <input
                       type="text"
                       value={companySearchText}
@@ -462,7 +462,7 @@ export default function VisitHistoryPage() {
                       }
                       onFocus={() => setIsCompanyDropdownOpen(true)}
                       placeholder="전체 또는 고객사명을 입력하세요"
-                      className="min-w-0 flex-1 bg-white px-4 py-3 text-black outline-none placeholder:text-slate-500"
+                      className="h-full min-w-0 flex-1 bg-white px-4 py-0 text-black outline-none placeholder:text-slate-500"
                     />
 
                     <button
@@ -471,7 +471,7 @@ export default function VisitHistoryPage() {
                       onClick={() =>
                         setIsCompanyDropdownOpen((prev) => !prev)
                       }
-                      className="flex w-12 items-center justify-center bg-white text-black"
+                      className="flex h-full w-12 items-center justify-center bg-white text-black"
                     >
                       ▼
                     </button>
@@ -528,7 +528,7 @@ export default function VisitHistoryPage() {
                     setSelectedVisitor('all')
                     setHasSearched(false)
                   }}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-black"
+                  className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 py-0 text-black"
                 >
                   <option value="all">전체</option>
 
@@ -551,7 +551,7 @@ export default function VisitHistoryPage() {
                     setSelectedVisitor(e.target.value)
                     setHasSearched(false)
                   }}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-black"
+                  className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 py-0 text-black"
                 >
                   <option value="all">전체</option>
 
@@ -567,7 +567,7 @@ export default function VisitHistoryPage() {
                 <button
                   type="button"
                   onClick={handleSearch}
-                  className="w-full rounded-2xl bg-blue-700 px-4 py-3 font-semibold text-white transition hover:bg-blue-800"
+                  className="h-12 w-full rounded-2xl bg-blue-700 px-4 py-0 font-semibold text-white transition hover:bg-blue-800"
                 >
                   조회
                 </button>
