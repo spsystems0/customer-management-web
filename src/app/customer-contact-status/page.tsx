@@ -13,6 +13,8 @@ type ContactRow = {
   id: number
   company_id: number
   name: string | null
+  position: string | null
+  department: string | null
   phone: string | null
   email: string | null
   work_location: string | null
@@ -22,6 +24,8 @@ type ContactRow = {
 type DisplayRow = {
   companyName: string
   contactName: string
+  position: string
+  department: string
   contactInfo: string
   email: string
   workLocation: string
@@ -170,6 +174,8 @@ export default function CustomerContactStatusPage() {
       return {
         companyName: company?.customer_name || '',
         contactName: contact.name || '',
+        position: contact.position || '',
+        department: contact.department || '',
         contactInfo: contact.phone || '',
         email: contact.email || '',
         workLocation: contact.work_location || '',
@@ -243,7 +249,9 @@ export default function CustomerContactStatusPage() {
 
     let query = supabase
       .from('contacts')
-      .select('id, company_id, name, phone, email, work_location, print_order')
+      .select(
+        'id, company_id, name, position, department, phone, email, work_location, print_order'
+      )
 
     if (selectedCompanyId !== 'all') {
       if (!selectedCompanyId) {
@@ -285,6 +293,8 @@ export default function CustomerContactStatusPage() {
           <tr>
             <td>${escapeHtml(row.companyName)}</td>
             <td>${escapeHtml(row.contactName)}</td>
+            <td>${escapeHtml(row.position)}</td>
+            <td>${escapeHtml(row.department)}</td>
             <td class="text-cell">${escapeHtml(row.contactInfo)}</td>
             <td>${escapeHtml(row.email)}</td>
             <td>${escapeHtml(row.workLocation)}</td>
@@ -336,16 +346,18 @@ export default function CustomerContactStatusPage() {
         <body>
           <table>
             <tr>
-              <td colspan="5" class="title">고객사 담당자 현황</td>
+              <td colspan="7" class="title">고객사 담당자 현황</td>
             </tr>
             <tr>
               <td class="label">고객사</td>
-              <td colspan="4">${escapeHtml(selectedCompanyName)}</td>
+              <td colspan="6">${escapeHtml(selectedCompanyName)}</td>
             </tr>
             <tr></tr>
             <tr>
               <th class="header">고객사명</th>
               <th class="header">담당자명</th>
+              <th class="header">직급</th>
+              <th class="header">부서명</th>
               <th class="header">연락처</th>
               <th class="header">이메일</th>
               <th class="header">근무지</th>
@@ -522,11 +534,13 @@ export default function CustomerContactStatusPage() {
                 <div className="overflow-hidden rounded-xl border border-slate-300">
                   <table className="w-full table-fixed border-collapse text-sm">
                     <colgroup>
-                      <col style={{ width: '22%' }} />
-                      <col style={{ width: '16%' }} />
                       <col style={{ width: '18%' }} />
-                      <col style={{ width: '27%' }} />
-                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '21%' }} />
+                      <col style={{ width: '10%' }} />
                     </colgroup>
 
                     <thead className="bg-slate-100">
@@ -536,6 +550,12 @@ export default function CustomerContactStatusPage() {
                         </th>
                         <th className="border border-slate-300 px-3 py-3 text-center font-bold text-black">
                           담당자명
+                        </th>
+                        <th className="border border-slate-300 px-3 py-3 text-center font-bold text-black">
+                          직급
+                        </th>
+                        <th className="border border-slate-300 px-3 py-3 text-center font-bold text-black">
+                          부서명
                         </th>
                         <th className="border border-slate-300 px-3 py-3 text-center font-bold text-black">
                           연락처
@@ -560,6 +580,14 @@ export default function CustomerContactStatusPage() {
 
                           <td className="break-keep border border-slate-300 px-3 py-2 text-black">
                             {row.contactName}
+                          </td>
+
+                          <td className="break-keep border border-slate-300 px-3 py-2 text-black">
+                            {row.position}
+                          </td>
+
+                          <td className="break-words border border-slate-300 px-3 py-2 text-black">
+                            {row.department}
                           </td>
 
                           <td className="break-words border border-slate-300 px-3 py-2 text-black">
