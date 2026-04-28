@@ -313,6 +313,7 @@ export default function CompaniesPage() {
         return
       }
 
+      alert('수정 내용이 저장되었습니다.')
       setMessage('고객사 정보가 수정되었습니다.')
       await fetchCompanies()
 

@@ -466,6 +466,7 @@ function VisitsPageContent() {
         return
       }
 
+      alert('수정 내용이 저장되었습니다.')
       setMessage('방문일지가 수정되었습니다.')
     } else {
       const { error } = await supabase.from('visit_logs').insert([payload])

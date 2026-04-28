@@ -152,6 +152,7 @@ export default function ContactPrintOrderPage() {
       }
     }
 
+    alert('수정 내용이 저장되었습니다.')
     setMessage('담당자 출력순서가 저장되었습니다.')
 
     const { data, error } = await supabase

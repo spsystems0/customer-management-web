@@ -187,6 +187,7 @@ export default function CustomerCategoryCodesPage() {
         return
       }
 
+      alert('수정 내용이 저장되었습니다.')
       setMessage('고객분류코드가 수정되었습니다.')
       await fetchCodes()
       return

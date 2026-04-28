@@ -431,6 +431,7 @@ export default function ContactsPage() {
         return
       }
 
+      alert('수정 내용이 저장되었습니다.')
       setMessage('고객담당자 정보가 수정되었습니다.')
     } else {
       const { error } = await supabase.from('contacts').insert([payload])
