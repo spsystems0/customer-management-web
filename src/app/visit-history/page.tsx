@@ -62,6 +62,28 @@ function getVisitPurpose(visit: Visit) {
   return visit.purpose || visit.visit_purpose || '-'
 }
 
+function normalizeText(value?: string | null) {
+  if (!value) return ''
+
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .join('\n')
+}
+
+function getVisitPurposeForPopup(visit: Visit) {
+  return normalizeText(visit.purpose || visit.visit_purpose || '')
+}
+
+function getDiscussionForPopup(visit: Visit) {
+  return normalizeText(visit.discussion || '')
+}
+
+function getFollowUpActionForPopup(visit: Visit) {
+  return normalizeText(visit.follow_up_action || '')
+}
+
 function formatDate(value?: string | null) {
   if (!value) return '-'
   return value.slice(0, 10)
@@ -426,6 +448,18 @@ export default function VisitHistoryPage() {
     )
   }
 
+  const selectedVisitPurposeForPopup = selectedVisit
+    ? getVisitPurposeForPopup(selectedVisit)
+    : ''
+
+  const selectedDiscussionForPopup = selectedVisit
+    ? getDiscussionForPopup(selectedVisit)
+    : ''
+
+  const selectedFollowUpActionForPopup = selectedVisit
+    ? getFollowUpActionForPopup(selectedVisit) || '-'
+    : '-'
+
   return (
     <div className="flex min-h-screen bg-slate-100">
       <Sidebar mode={sidebarMode} />
@@ -669,8 +703,8 @@ export default function VisitHistoryPage() {
       </main>
 
       {isModalOpen && selectedVisit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-6xl rounded-3xl bg-white shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h3 className="text-xl font-bold text-slate-900">
                 방문일지 상세
@@ -685,7 +719,7 @@ export default function VisitHistoryPage() {
               </button>
             </div>
 
-            <div className="space-y-5 px-6 py-6">
+            <div className="max-h-[calc(90vh-130px)] space-y-4 overflow-y-auto px-6 py-6">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <ReadItem
                   label="고객사"
@@ -715,11 +749,23 @@ export default function VisitHistoryPage() {
                 />
               </div>
 
-              <ReadBlock label="방문목적" value={getVisitPurpose(selectedVisit)} />
-              <ReadBlock label="상담내용" value={selectedVisit.discussion || ''} />
+              {selectedVisitPurposeForPopup && (
+                <ReadBlock
+                  label="방문목적"
+                  value={selectedVisitPurposeForPopup}
+                />
+              )}
+
+              {selectedDiscussionForPopup && (
+                <ReadBlock
+                  label="상담내용"
+                  value={selectedDiscussionForPopup}
+                />
+              )}
+
               <ReadBlock
                 label="후속조치"
-                value={selectedVisit.follow_up_action || ''}
+                value={selectedFollowUpActionForPopup}
               />
             </div>
 
@@ -754,9 +800,7 @@ function ReadBlock({ label, value }: { label: string; value: string }) {
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
         {label}
       </div>
-      <div className="min-h-[96px] whitespace-pre-wrap px-4 py-4 text-black">
-        {value || '-'}
-      </div>
+      <div className="whitespace-pre-wrap px-4 py-4 text-black">{value}</div>
     </div>
   )
 }
