@@ -432,8 +432,6 @@ function VisitsPageContent() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setMessage('')
-    setShowLoadCompanyList(false)
-    setShowFormCompanyList(false)
 
     if (!selectedCompanyId) {
       setMessage('고객사를 목록에서 선택해 주세요.')
@@ -466,23 +464,20 @@ function VisitsPageContent() {
         return
       }
 
-      alert('수정 내용이 저장되었습니다.')
-      setMessage('방문일지가 수정되었습니다.')
-    } else {
-      const { error } = await supabase.from('visit_logs').insert([payload])
-
-      if (error) {
-        setMessage(`저장 실패: ${error.message}`)
-        return
-      }
-
-      alert('방문일지가 저장되었습니다.')
-      setMessage('방문일지가 저장되었습니다.')
+      alert('저장이 완료되었습니다.')
+      window.location.href = '/dashboard'
+      return
     }
 
-    setSelectedLoadCompanyId(selectedCompanyId)
-    setLoadCompanySearchText(formCompanySearchText)
-    await refreshVisitOptions(selectedCompanyId)
+    const { error } = await supabase.from('visit_logs').insert([payload])
+
+    if (error) {
+      setMessage(`저장 실패: ${error.message}`)
+      return
+    }
+
+    alert('저장이 완료되었습니다.')
+    window.location.href = '/dashboard'
   }
 
   const handleDelete = async () => {
