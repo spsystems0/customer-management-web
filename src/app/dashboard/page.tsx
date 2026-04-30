@@ -22,13 +22,15 @@ const menuGroups: DashboardMenuItem[][] = [
       colorClass: 'border-blue-200 bg-blue-50 hover:bg-blue-100',
       titleClass: 'text-blue-900',
     },
+
     {
-      title: '고객사 담당자 현황',
-      description: '고객사별 담당자 현황을 조회하고 Excel로 다운로드합니다.',
-      href: '/customer-contact-status',
-      colorClass: 'border-teal-200 bg-teal-50 hover:bg-teal-100',
-      titleClass: 'text-teal-900',
+      title: '고객사 현황',
+      description: '고객사 현황을 조회하고 Excel로 다운로드합니다.',
+      href: '/customer-company-status',
+      colorClass: 'border-orange-200 bg-orange-50 hover:bg-orange-100',
+      titleClass: 'text-orange-900',
     },
+
   ],
   [
     {
@@ -39,11 +41,11 @@ const menuGroups: DashboardMenuItem[][] = [
       titleClass: 'text-emerald-900',
     },
     {
-      title: '담당자 출력순서 관리',
-      description: '고객관리카드 출력 시 담당자 표시 순서를 관리합니다.',
-      href: '/contact-print-order',
-      colorClass: 'border-cyan-200 bg-cyan-50 hover:bg-cyan-100',
-      titleClass: 'text-cyan-900',
+      title: '고객사 담당자 현황',
+      description: '고객사별 담당자 현황을 조회하고 Excel로 다운로드합니다.',
+      href: '/customer-contact-status',
+      colorClass: 'border-teal-200 bg-teal-50 hover:bg-teal-100',
+      titleClass: 'text-teal-900',
     },
   ],
   [
@@ -54,15 +56,13 @@ const menuGroups: DashboardMenuItem[][] = [
       colorClass: 'border-amber-200 bg-amber-50 hover:bg-amber-100',
       titleClass: 'text-amber-900',
     },
-/*
     {
-      title: '방문일지 조회',
-      description: '고객사, 고객담당자, 영업담당자 조건으로 방문일지를 조회합니다.',
-      href: '/visit-history',
-      colorClass: 'border-orange-200 bg-orange-50 hover:bg-orange-100',
-      titleClass: 'text-orange-900',
+      title: '담당자 출력순서 관리',
+      description: '고객관리카드 출력 시 담당자 표시 순서를 관리합니다.',
+      href: '/contact-print-order',
+      colorClass: 'border-cyan-200 bg-cyan-50 hover:bg-cyan-100',
+      titleClass: 'text-cyan-900',
     },
-*/
     ],
 ]
 
