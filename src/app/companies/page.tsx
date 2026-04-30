@@ -374,7 +374,7 @@ export default function CompaniesPage() {
     await fetchCompanies()
     resetForm()
 
-    alert('Save Complete')
+    alert('고객사 정보가 저장되었습니다.')
     setMessage('고객사 정보가 저장되었습니다.')
   }
 
