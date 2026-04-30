@@ -54,6 +54,7 @@ const menuGroups: DashboardMenuItem[][] = [
       colorClass: 'border-amber-200 bg-amber-50 hover:bg-amber-100',
       titleClass: 'text-amber-900',
     },
+/*
     {
       title: '방문일지 조회',
       description: '고객사, 고객담당자, 영업담당자 조건으로 방문일지를 조회합니다.',
@@ -61,7 +62,8 @@ const menuGroups: DashboardMenuItem[][] = [
       colorClass: 'border-orange-200 bg-orange-50 hover:bg-orange-100',
       titleClass: 'text-orange-900',
     },
-  ],
+*/
+    ],
 ]
 
 export default function DashboardPage() {
