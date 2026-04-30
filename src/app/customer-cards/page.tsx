@@ -43,7 +43,8 @@ type VisitLog = {
 }
 
 export default function CustomerCardsPage() {
-  const companyListRef = useRef<HTMLDivElement | null>(null)
+  const companyDropdownRef = useRef<HTMLDivElement | null>(null)
+  const autoLoadedRef = useRef(false)
 
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('guest')
 
@@ -52,6 +53,7 @@ export default function CustomerCardsPage() {
 
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const [selectedContactId, setSelectedContactId] = useState('')
+  const [pendingAutoContactId, setPendingAutoContactId] = useState('')
 
   const [companySearchText, setCompanySearchText] = useState('')
   const [showCompanyList, setShowCompanyList] = useState(false)
@@ -90,10 +92,10 @@ export default function CustomerCardsPage() {
   }, [])
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (
-        companyListRef.current &&
-        !companyListRef.current.contains(event.target as Node)
+        companyDropdownRef.current &&
+        !companyDropdownRef.current.contains(event.target as Node)
       ) {
         setShowCompanyList(false)
       }
@@ -147,6 +149,7 @@ export default function CustomerCardsPage() {
           sensitive_info_print
         `)
         .eq('company_id', Number(selectedCompanyId))
+        .order('print_order', { ascending: true })
         .order('name', { ascending: true })
 
       if (error) {
@@ -163,11 +166,93 @@ export default function CustomerCardsPage() {
     loadContacts()
   }, [selectedCompanyId])
 
+  useEffect(() => {
+    if (loading) return
+    if (companies.length === 0) return
+    if (autoLoadedRef.current) return
+
+    const params = new URLSearchParams(window.location.search)
+    const companyIdFromUrl = params.get('companyId')
+    const contactIdFromUrl = params.get('contactId')
+
+    if (!companyIdFromUrl || !contactIdFromUrl) return
+
+    const matchedCompany = companies.find(
+      (company) => String(company.id) === String(companyIdFromUrl)
+    )
+
+    if (!matchedCompany) {
+      setMessage('선택한 고객사 정보를 찾을 수 없습니다.')
+      return
+    }
+
+    autoLoadedRef.current = true
+
+    setSelectedCompanyId(String(matchedCompany.id))
+    setCompanySearchText(matchedCompany.customer_name)
+    setShowCompanyList(false)
+    setPendingAutoContactId(contactIdFromUrl)
+  }, [loading, companies])
+
+  useEffect(() => {
+    const autoLoadContact = async () => {
+      if (!pendingAutoContactId) return
+      if (!selectedCompanyId) return
+      if (contacts.length === 0) return
+
+      const matchedContact = contacts.find(
+        (contact) => String(contact.id) === String(pendingAutoContactId)
+      )
+
+      if (!matchedContact) {
+        setMessage('선택한 담당자 정보를 찾을 수 없습니다.')
+        setPendingAutoContactId('')
+        return
+      }
+
+      setSelectedContactId(String(matchedContact.id))
+      setPendingAutoContactId('')
+
+      await loadCustomerCard(
+        selectedCompanyId,
+        String(matchedContact.id),
+        matchedContact
+      )
+    }
+
+    autoLoadContact()
+  }, [pendingAutoContactId, selectedCompanyId, contacts])
+
   const filteredCompanies = companies.filter((company) =>
     company.customer_name
       .toLowerCase()
       .includes(companySearchText.trim().toLowerCase())
   )
+
+  const loadCustomerCard = async (
+    companyId: string,
+    contactId: string,
+    contact: Contact
+  ) => {
+    setMessage('')
+    setSelectedContact(contact)
+
+    const { data: visitData, error: visitError } = await supabase
+      .from('visit_logs')
+      .select('id, visit_date, purpose, discussion, visitor_name')
+      .eq('company_id', Number(companyId))
+      .eq('contact_id', Number(contactId))
+      .order('visit_date', { ascending: false })
+      .limit(50)
+
+    if (visitError) {
+      setMessage(`방문이력 조회 실패: ${visitError.message}`)
+      setVisitLogs([])
+      return
+    }
+
+    setVisitLogs(visitData || [])
+  }
 
   const handleCompanyInputChange = (value: string) => {
     setCompanySearchText(value)
@@ -214,22 +299,7 @@ export default function CustomerCardsPage() {
       return
     }
 
-    setSelectedContact(contact)
-
-    const { data: visitData, error: visitError } = await supabase
-      .from('visit_logs')
-      .select('id, visit_date, purpose, discussion, visitor_name')
-      .eq('company_id', Number(selectedCompanyId))
-      .eq('contact_id', Number(selectedContactId))
-      .order('visit_date', { ascending: false })
-      .limit(50)
-
-    if (visitError) {
-      setMessage(`방문이력 조회 실패: ${visitError.message}`)
-      return
-    }
-
-    setVisitLogs(visitData || [])
+    await loadCustomerCard(selectedCompanyId, selectedContactId, contact)
   }
 
   const handlePrint = () => {
@@ -247,6 +317,14 @@ export default function CustomerCardsPage() {
 
   const showSensitive = !!selectedContact?.sensitive_info_print
 
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100">
+        <p className="text-slate-700">목록 불러오는 중...</p>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="flex">
@@ -263,92 +341,89 @@ export default function CustomerCardsPage() {
                 고객사와 담당자를 선택하여 고객관리카드를 조회하고 출력합니다.
               </p>
 
-              {loading ? (
-                <div className="mt-6 text-black">목록 불러오는 중...</div>
-              ) : (
-                <>
-                  <div className="mt-8 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
-                    <div ref={companyListRef} className="relative">
-                      <input
-                        type="text"
-                        value={companySearchText}
-                        onChange={(e) =>
-                          handleCompanyInputChange(e.target.value)
-                        }
-                        onFocus={() => setShowCompanyList(true)}
-                        placeholder="고객사를 선택하세요"
-                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                      />
+              <div className="mt-8 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
+                <div ref={companyDropdownRef} className="relative">
+                  <input
+                    type="text"
+                    value={companySearchText}
+                    onChange={(e) => handleCompanyInputChange(e.target.value)}
+                    onFocus={() => setShowCompanyList(true)}
+                    placeholder="고객사를 선택하세요"
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                  />
 
-                      {showCompanyList && (
-                        <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
-                          {filteredCompanies.length > 0 ? (
-                            filteredCompanies.map((company) => (
-                              <button
-                                key={company.id}
-                                type="button"
-                                onClick={() => handleCompanySelect(company)}
-                                className="block w-full px-4 py-3 text-left text-black hover:bg-emerald-50"
-                              >
-                                {company.customer_name}
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-4 py-3 text-sm text-slate-500">
-                              검색된 고객사가 없습니다.
-                            </div>
-                          )}
+                  {showCompanyList && (
+                    <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+                      {filteredCompanies.length > 0 ? (
+                        filteredCompanies.map((company) => (
+                          <button
+                            key={company.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleCompanySelect(company)}
+                            className={`block w-full px-4 py-3 text-left text-black hover:bg-emerald-50 ${
+                              String(selectedCompanyId) === String(company.id)
+                                ? 'bg-emerald-50 font-semibold'
+                                : 'bg-white'
+                            }`}
+                          >
+                            {company.customer_name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-slate-500">
+                          검색된 고객사가 없습니다.
                         </div>
                       )}
                     </div>
-
-                    <select
-                      value={selectedContactId}
-                      onChange={(e) => {
-                        setSelectedContactId(e.target.value)
-                        setSelectedContact(null)
-                        setVisitLogs([])
-                        setMessage('')
-                      }}
-                      className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
-                      disabled={!selectedCompanyId || loadingContacts}
-                    >
-                      <option value="">
-                        {loadingContacts
-                          ? '담당자 불러오는 중...'
-                          : '담당자를 선택하세요'}
-                      </option>
-
-                      {contacts.map((contact) => (
-                        <option key={contact.id} value={contact.id}>
-                          {contact.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      type="button"
-                      onClick={handleSearch}
-                      className="rounded-xl bg-emerald-700 px-6 py-3 font-medium text-white hover:bg-emerald-800"
-                    >
-                      조회
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handlePrint}
-                      className="rounded-xl bg-slate-600 px-6 py-3 font-medium text-white hover:bg-slate-700"
-                    >
-                      출력
-                    </button>
-                  </div>
-
-                  {message && (
-                    <div className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-black">
-                      {message}
-                    </div>
                   )}
-                </>
+                </div>
+
+                <select
+                  value={selectedContactId}
+                  onChange={(e) => {
+                    setSelectedContactId(e.target.value)
+                    setSelectedContact(null)
+                    setVisitLogs([])
+                    setMessage('')
+                  }}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                  disabled={!selectedCompanyId || loadingContacts}
+                >
+                  <option value="">
+                    {loadingContacts
+                      ? '담당자 불러오는 중...'
+                      : '담당자를 선택하세요'}
+                  </option>
+
+                  {contacts.map((contact) => (
+                    <option key={contact.id} value={contact.id}>
+                      {contact.name}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  className="rounded-xl bg-emerald-700 px-6 py-3 font-medium text-white hover:bg-emerald-800"
+                >
+                  조회
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="rounded-xl bg-slate-600 px-6 py-3 font-medium text-white hover:bg-slate-700"
+                >
+                  출력
+                </button>
+              </div>
+
+              {message && (
+                <div className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-black">
+                  {message}
+                </div>
               )}
             </div>
 
@@ -388,15 +463,11 @@ export default function CustomerCardsPage() {
                     />
                     <InfoItem
                       label="결혼유무"
-                      value={
-                        showSensitive ? selectedContact.marital_status : ''
-                      }
+                      value={showSensitive ? selectedContact.marital_status : ''}
                     />
                     <InfoItem
                       label="가족관계"
-                      value={
-                        showSensitive ? selectedContact.family_relation : ''
-                      }
+                      value={showSensitive ? selectedContact.family_relation : ''}
                     />
                     <InfoItem
                       label="학력사항"
@@ -560,9 +631,7 @@ export default function CustomerCardsPage() {
                         <th className="customer-print-label" rowSpan={4}>
                           고객인적사항
                         </th>
-                        <th className="customer-print-sub-label">
-                          생 년 월 일
-                        </th>
+                        <th className="customer-print-sub-label">생 년 월 일</th>
                         <td>
                           {showSensitive ? selectedContact.birth_date || '' : ''}
                         </td>
@@ -573,17 +642,13 @@ export default function CustomerCardsPage() {
                       </tr>
 
                       <tr>
-                        <th className="customer-print-sub-label">
-                          결 혼 유 무
-                        </th>
+                        <th className="customer-print-sub-label">결 혼 유 무</th>
                         <td>
                           {showSensitive
                             ? selectedContact.marital_status || ''
                             : ''}
                         </td>
-                        <th className="customer-print-sub-label">
-                          가 족 관 계
-                        </th>
+                        <th className="customer-print-sub-label">가 족 관 계</th>
                         <td colSpan={3}>
                           {showSensitive
                             ? selectedContact.family_relation || ''
@@ -592,9 +657,7 @@ export default function CustomerCardsPage() {
                       </tr>
 
                       <tr>
-                        <th className="customer-print-sub-label">
-                          학 력 사 항
-                        </th>
+                        <th className="customer-print-sub-label">학 력 사 항</th>
                         <td>
                           {showSensitive ? selectedContact.education || '' : ''}
                         </td>
@@ -602,9 +665,7 @@ export default function CustomerCardsPage() {
                           최종졸업학교
                         </th>
                         <td colSpan={3}>
-                          {showSensitive
-                            ? selectedContact.school_name || ''
-                            : ''}
+                          {showSensitive ? selectedContact.school_name || '' : ''}
                         </td>
                       </tr>
 
@@ -657,9 +718,7 @@ export default function CustomerCardsPage() {
                       <tr>
                         <th
                           className="customer-print-label"
-                          rowSpan={
-                            visitLogs.length > 0 ? visitLogs.length + 1 : 2
-                          }
+                          rowSpan={visitLogs.length > 0 ? visitLogs.length + 1 : 2}
                         >
                           방 문 이 력
                         </th>

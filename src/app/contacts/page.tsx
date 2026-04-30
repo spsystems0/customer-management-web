@@ -1,8 +1,39 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
+
+const CONTACT_SELECT_FIELDS = `
+  id,
+  company_id,
+  name,
+  position,
+  work_location,
+  department,
+  phone,
+  email,
+  main_role,
+  work_location_detail,
+  address,
+  birth_date,
+  marital_status,
+  family_relation,
+  education,
+  school_name,
+  hobby,
+  gender,
+  special_notes,
+  sensitive_info_print,
+  print_order
+`
 
 type Company = {
   id: number
@@ -30,11 +61,13 @@ type Contact = {
   gender: string | null
   special_notes: string | null
   sensitive_info_print: boolean | null
+  print_order: number | null
 }
 
 export default function ContactsPage() {
   const loadCompanyListRef = useRef<HTMLDivElement | null>(null)
   const formCompanyListRef = useRef<HTMLDivElement | null>(null)
+  const autoLoadedRef = useRef(false)
 
   const [companies, setCompanies] = useState<Company[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -74,6 +107,117 @@ export default function ContactsPage() {
   const [sensitiveInfoPrint, setSensitiveInfoPrint] = useState(false)
 
   const [message, setMessage] = useState('')
+
+  const getCompanyName = useCallback(
+    (targetCompanyId: string | number) => {
+      const company = companies.find(
+        (item) => String(item.id) === String(targetCompanyId)
+      )
+
+      return company?.customer_name || ''
+    },
+    [companies]
+  )
+
+  const fillContactForm = useCallback(
+    (contact: Contact) => {
+      const companyName = getCompanyName(contact.company_id)
+
+      setEditingId(contact.id)
+      setSelectedContactId(String(contact.id))
+
+      setCompanyId(String(contact.company_id))
+      setFormCompanySearchText(companyName)
+
+      setName(contact.name || '')
+      setPosition(contact.position || '')
+      setWorkLocation(contact.work_location || '')
+      setDepartment(contact.department || '')
+      setPhone(contact.phone || '')
+      setEmail(contact.email || '')
+      setMainRole(contact.main_role || '')
+      setWorkLocationDetail(contact.work_location_detail || '')
+      setAddress(contact.address || '')
+
+      setBirthDate(contact.birth_date || '')
+      setMaritalStatus(contact.marital_status || '')
+      setFamilyRelation(contact.family_relation || '')
+      setEducation(contact.education || '')
+      setSchoolName(contact.school_name || '')
+      setHobby(contact.hobby || '')
+      setGender(contact.gender || '')
+      setSpecialNotes(contact.special_notes || '')
+      setSensitiveInfoPrint(!!contact.sensitive_info_print)
+    },
+    [getCompanyName]
+  )
+
+  const clearContactFormOnly = () => {
+    setEditingId(null)
+
+    setCompanyId('')
+    setFormCompanySearchText('')
+    setShowFormCompanyList(false)
+
+    setName('')
+    setPosition('')
+    setWorkLocation('')
+    setDepartment('')
+    setPhone('')
+    setEmail('')
+    setMainRole('')
+    setWorkLocationDetail('')
+    setAddress('')
+
+    setBirthDate('')
+    setMaritalStatus('')
+    setFamilyRelation('')
+    setEducation('')
+    setSchoolName('')
+    setHobby('')
+    setGender('')
+    setSpecialNotes('')
+    setSensitiveInfoPrint(false)
+  }
+
+  const loadContactsByCompanyId = useCallback(
+    async (targetCompanyId: string, contactIdToKeep = '') => {
+      setContacts([])
+      setSelectedContactId(contactIdToKeep)
+
+      if (!targetCompanyId) {
+        setLoadingContacts(false)
+        return
+      }
+
+      setLoadingContacts(true)
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .select(CONTACT_SELECT_FIELDS)
+        .eq('company_id', Number(targetCompanyId))
+        .order('print_order', { ascending: true })
+        .order('name', { ascending: true })
+
+      if (error) {
+        setMessage(`담당자 목록 조회 실패: ${error.message}`)
+        setLoadingContacts(false)
+        return
+      }
+
+      setContacts((data as Contact[]) || [])
+      setSelectedContactId(contactIdToKeep)
+      setLoadingContacts(false)
+    },
+    []
+  )
+
+  const refreshContacts = async (
+    targetCompanyId: string,
+    contactIdToKeep = ''
+  ) => {
+    await loadContactsByCompanyId(targetCompanyId, contactIdToKeep)
+  }
 
   useEffect(() => {
     const initialize = async () => {
@@ -134,55 +278,86 @@ export default function ContactsPage() {
   }, [])
 
   useEffect(() => {
-    const loadContacts = async () => {
-      setSelectedContactId('')
-      setContacts([])
+    if (loading) return
+    if (autoLoadedRef.current) return
 
-      if (!selectedCompanyId) {
+    const params = new URLSearchParams(window.location.search)
+    const companyIdFromUrl = params.get('companyId')
+    const contactIdFromUrl = params.get('contactId')
+
+    if (!companyIdFromUrl && !contactIdFromUrl) return
+
+    autoLoadedRef.current = true
+
+    const loadFromUrl = async () => {
+      setMessage('')
+
+      if (contactIdFromUrl) {
+        const { data, error } = await supabase
+          .from('contacts')
+          .select(CONTACT_SELECT_FIELDS)
+          .eq('id', Number(contactIdFromUrl))
+          .single()
+
+        if (error) {
+          setMessage(`담당자 정보 조회 실패: ${error.message}`)
+          return
+        }
+
+        if (!data) {
+          setMessage('선택한 담당자 정보를 찾을 수 없습니다.')
+          return
+        }
+
+        const contact = data as Contact
+        const targetCompanyId = String(contact.company_id)
+        const targetCompanyName = getCompanyName(targetCompanyId)
+
+        setSelectedCompanyId(targetCompanyId)
+        setLoadCompanySearchText(targetCompanyName)
+        setShowLoadCompanyList(false)
+
+        setCompanyId(targetCompanyId)
+        setFormCompanySearchText(targetCompanyName)
+        setShowFormCompanyList(false)
+
+        fillContactForm(contact)
+        await loadContactsByCompanyId(targetCompanyId, String(contact.id))
+
+        setMessage('고객담당자 정보를 불러왔습니다.')
         return
       }
 
-      setLoadingContacts(true)
+      if (companyIdFromUrl) {
+        const matchedCompany = companies.find(
+          (company) => String(company.id) === String(companyIdFromUrl)
+        )
 
-      const { data, error } = await supabase
-        .from('contacts')
-        .select(`
-          id,
-          company_id,
-          name,
-          position,
-          work_location,
-          department,
-          phone,
-          email,
-          main_role,
-          work_location_detail,
-          address,
-          birth_date,
-          marital_status,
-          family_relation,
-          education,
-          school_name,
-          hobby,
-          gender,
-          special_notes,
-          sensitive_info_print
-        `)
-        .eq('company_id', Number(selectedCompanyId))
-        .order('name', { ascending: true })
+        if (!matchedCompany) {
+          setMessage('선택한 고객사 정보를 찾을 수 없습니다.')
+          return
+        }
 
-      if (error) {
-        setMessage(`담당자 목록 조회 실패: ${error.message}`)
-        setLoadingContacts(false)
-        return
+        setSelectedCompanyId(String(matchedCompany.id))
+        setLoadCompanySearchText(matchedCompany.customer_name)
+        setShowLoadCompanyList(false)
+
+        setCompanyId(String(matchedCompany.id))
+        setFormCompanySearchText(matchedCompany.customer_name)
+        setShowFormCompanyList(false)
+
+        await loadContactsByCompanyId(String(matchedCompany.id))
       }
-
-      setContacts(data || [])
-      setLoadingContacts(false)
     }
 
-    loadContacts()
-  }, [selectedCompanyId])
+    loadFromUrl()
+  }, [
+    loading,
+    companies,
+    fillContactForm,
+    getCompanyName,
+    loadContactsByCompanyId,
+  ])
 
   const filteredLoadCompanies = useMemo(() => {
     const searchText = loadCompanySearchText.trim().toLowerCase()
@@ -204,42 +379,6 @@ export default function ContactsPage() {
     )
   }, [companies, formCompanySearchText])
 
-  const refreshContacts = async (targetCompanyId: string) => {
-    if (!targetCompanyId) {
-      setContacts([])
-      return
-    }
-
-    const { data } = await supabase
-      .from('contacts')
-      .select(`
-        id,
-        company_id,
-        name,
-        position,
-        work_location,
-        department,
-        phone,
-        email,
-        main_role,
-        work_location_detail,
-        address,
-        birth_date,
-        marital_status,
-        family_relation,
-        education,
-        school_name,
-        hobby,
-        gender,
-        special_notes,
-        sensitive_info_print
-      `)
-      .eq('company_id', Number(targetCompanyId))
-      .order('name', { ascending: true })
-
-    setContacts(data || [])
-  }
-
   const resetForm = () => {
     setSelectedCompanyId('')
     setSelectedContactId('')
@@ -248,31 +387,12 @@ export default function ContactsPage() {
     setLoadCompanySearchText('')
     setShowLoadCompanyList(false)
 
-    setFormCompanySearchText('')
-    setShowFormCompanyList(false)
-
-    setCompanyId('')
-    setName('')
-    setPosition('')
-    setWorkLocation('')
-    setDepartment('')
-    setPhone('')
-    setEmail('')
-    setMainRole('')
-    setWorkLocationDetail('')
-    setAddress('')
-    setBirthDate('')
-    setMaritalStatus('')
-    setFamilyRelation('')
-    setEducation('')
-    setSchoolName('')
-    setHobby('')
-    setGender('')
-    setSpecialNotes('')
-    setSensitiveInfoPrint(false)
+    clearContactFormOnly()
 
     setContacts([])
     setMessage('')
+
+    window.history.replaceState(null, '', '/contacts')
   }
 
   const handleLoadCompanyInputChange = (value: string) => {
@@ -285,11 +405,15 @@ export default function ContactsPage() {
   }
 
   const handleLoadCompanySelect = (company: Company) => {
-    setSelectedCompanyId(String(company.id))
+    const nextCompanyId = String(company.id)
+
+    setSelectedCompanyId(nextCompanyId)
     setLoadCompanySearchText(company.customer_name)
     setSelectedContactId('')
     setMessage('')
     setShowLoadCompanyList(false)
+
+    loadContactsByCompanyId(nextCompanyId)
   }
 
   const handleFormCompanyInputChange = (value: string) => {
@@ -325,32 +449,7 @@ export default function ContactsPage() {
       return
     }
 
-    const company = companies.find(
-      (item) => String(item.id) === String(contact.company_id)
-    )
-
-    setEditingId(contact.id)
-    setCompanyId(String(contact.company_id))
-    setFormCompanySearchText(company?.customer_name || '')
-    setName(contact.name || '')
-    setPosition(contact.position || '')
-    setWorkLocation(contact.work_location || '')
-    setDepartment(contact.department || '')
-    setPhone(contact.phone || '')
-    setEmail(contact.email || '')
-    setMainRole(contact.main_role || '')
-    setWorkLocationDetail(contact.work_location_detail || '')
-    setAddress(contact.address || '')
-    setBirthDate(contact.birth_date || '')
-    setMaritalStatus(contact.marital_status || '')
-    setFamilyRelation(contact.family_relation || '')
-    setEducation(contact.education || '')
-    setSchoolName(contact.school_name || '')
-    setHobby(contact.hobby || '')
-    setGender(contact.gender || '')
-    setSpecialNotes(contact.special_notes || '')
-    setSensitiveInfoPrint(!!contact.sensitive_info_print)
-
+    fillContactForm(contact)
     setMessage('고객담당자 정보를 불러왔습니다.')
   }
 
@@ -431,29 +530,47 @@ export default function ContactsPage() {
         return
       }
 
-      alert('수정 내용이 저장되었습니다.')
+      alert('저장이 완료되었습니다.')
       setMessage('고객담당자 정보가 수정되었습니다.')
-    } else {
-      const { error } = await supabase.from('contacts').insert([payload])
 
-      if (error) {
-        if (
-          error.message.includes('contacts_company_id_name_unique') ||
-          error.message.toLowerCase().includes('duplicate')
-        ) {
-          setMessage('같은 고객사에 동일한 담당자명이 이미 등록되어 있습니다.')
-          return
-        }
+      const savedCompany = companies.find(
+        (company) => String(company.id) === String(companyId)
+      )
 
-        setMessage(`저장 실패: ${error.message}`)
+      setSelectedCompanyId(companyId)
+      setLoadCompanySearchText(
+        savedCompany?.customer_name || formCompanySearchText
+      )
+
+      await refreshContacts(companyId, String(editingId))
+      return
+    }
+
+    const { error } = await supabase.from('contacts').insert([payload])
+
+    if (error) {
+      if (
+        error.message.includes('contacts_company_id_name_unique') ||
+        error.message.toLowerCase().includes('duplicate')
+      ) {
+        setMessage('같은 고객사에 동일한 담당자명이 이미 등록되어 있습니다.')
         return
       }
 
-      setMessage('고객담당자 정보가 저장되었습니다.')
+      setMessage(`저장 실패: ${error.message}`)
+      return
     }
 
-    const refreshCompanyId = selectedCompanyId || companyId
-    await refreshContacts(refreshCompanyId)
+    alert('저장이 완료되었습니다.')
+    setMessage('고객담당자 정보가 저장되었습니다.')
+
+    const savedCompany = companies.find(
+      (company) => String(company.id) === String(companyId)
+    )
+
+    setSelectedCompanyId(companyId)
+    setLoadCompanySearchText(savedCompany?.customer_name || formCompanySearchText)
+    await refreshContacts(companyId)
   }
 
   const handleDelete = async () => {
@@ -469,6 +586,8 @@ export default function ContactsPage() {
     const confirmed = window.confirm('선택한 고객담당자 정보를 삭제하시겠습니까?')
     if (!confirmed) return
 
+    const deleteCompanyId = companyId || selectedCompanyId
+
     const { error } = await supabase
       .from('contacts')
       .delete()
@@ -479,32 +598,15 @@ export default function ContactsPage() {
       return
     }
 
+    alert('삭제가 완료되었습니다.')
     setMessage('고객담당자 정보가 삭제되었습니다.')
 
-    if (selectedCompanyId) {
-      await refreshContacts(selectedCompanyId)
-    }
-
-    setEditingId(null)
+    clearContactFormOnly()
     setSelectedContactId('')
-    setName('')
-    setPosition('')
-    setWorkLocation('')
-    setDepartment('')
-    setPhone('')
-    setEmail('')
-    setMainRole('')
-    setWorkLocationDetail('')
-    setAddress('')
-    setBirthDate('')
-    setMaritalStatus('')
-    setFamilyRelation('')
-    setEducation('')
-    setSchoolName('')
-    setHobby('')
-    setGender('')
-    setSpecialNotes('')
-    setSensitiveInfoPrint(false)
+
+    if (deleteCompanyId) {
+      await refreshContacts(deleteCompanyId)
+    }
   }
 
   if (loading) {
@@ -555,6 +657,7 @@ export default function ContactsPage() {
                           <button
                             key={company.id}
                             type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={() => handleLoadCompanySelect(company)}
                             className="block w-full px-4 py-3 text-left text-black hover:bg-blue-50"
                           >
@@ -607,7 +710,10 @@ export default function ContactsPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-8 grid gap-4 md:grid-cols-2">
+            <form
+              onSubmit={handleSubmit}
+              className="mt-8 grid gap-4 md:grid-cols-2"
+            >
               <div ref={formCompanyListRef} className="relative">
                 <input
                   type="text"
@@ -628,6 +734,7 @@ export default function ContactsPage() {
                         <button
                           key={company.id}
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => handleFormCompanySelect(company)}
                           className="block w-full px-4 py-3 text-left text-black hover:bg-emerald-50"
                         >
@@ -708,7 +815,9 @@ export default function ContactsPage() {
               />
 
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:col-span-2">
-                <h2 className="text-lg font-semibold text-slate-800">민감정보</h2>
+                <h2 className="text-lg font-semibold text-slate-800">
+                  민감정보
+                </h2>
 
                 <p className="mt-1 text-sm text-slate-600">
                   민감정보 출력 포함 체크 시 고객관리카드 출력 시 함께 표시됩니다.
@@ -782,7 +891,7 @@ export default function ContactsPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex gap-3 md:col-span-2">
+              <div className="mt-4 flex flex-wrap gap-3 md:col-span-2">
                 <button
                   type="submit"
                   className="rounded-xl bg-emerald-700 px-6 py-3 font-medium text-white hover:bg-emerald-800"
@@ -809,9 +918,19 @@ export default function ContactsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    window.location.href = '/dashboard'
+                    window.history.back()
                   }}
                   className="rounded-xl bg-blue-700 px-6 py-3 font-medium text-white hover:bg-blue-800"
+                >
+                  이전 화면으로
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = '/dashboard'
+                  }}
+                  className="rounded-xl bg-slate-700 px-6 py-3 font-medium text-white hover:bg-slate-800"
                 >
                   대시보드로 이동
                 </button>
