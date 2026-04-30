@@ -76,6 +76,35 @@ export default function ContactPrintOrderPage() {
   const [loadingContacts, setLoadingContacts] = useState(false)
   const [message, setMessage] = useState('')
 
+  const loadContactsByCompanyId = async (companyId: string) => {
+    if (!companyId) {
+      setContacts([])
+      return
+    }
+
+    setLoadingContacts(true)
+    setMessage('')
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .select(
+        'id, company_id, name, department, position, phone, email, print_order'
+      )
+      .eq('company_id', Number(companyId))
+      .order('print_order', { ascending: true })
+      .order('name', { ascending: true })
+
+    if (error) {
+      setMessage(`담당자 목록 조회 실패: ${error.message}`)
+      setContacts([])
+      setLoadingContacts(false)
+      return
+    }
+
+    setContacts((data || []) as ContactRow[])
+    setLoadingContacts(false)
+  }
+
   useEffect(() => {
     const initialize = async () => {
       const {
@@ -126,34 +155,12 @@ export default function ContactPrintOrderPage() {
   }, [])
 
   useEffect(() => {
-    const loadContacts = async () => {
+    if (!selectedCompanyId) {
       setContacts([])
-      setMessage('')
-
-      if (!selectedCompanyId) return
-
-      setLoadingContacts(true)
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .select(
-          'id, company_id, name, department, position, phone, email, print_order'
-        )
-        .eq('company_id', Number(selectedCompanyId))
-        .order('print_order', { ascending: true })
-        .order('name', { ascending: true })
-
-      if (error) {
-        setMessage(`담당자 목록 조회 실패: ${error.message}`)
-        setLoadingContacts(false)
-        return
-      }
-
-      setContacts((data || []) as ContactRow[])
-      setLoadingContacts(false)
+      return
     }
 
-    loadContacts()
+    loadContactsByCompanyId(selectedCompanyId)
   }, [selectedCompanyId])
 
   const filteredCompanies = useMemo(() => {
@@ -173,29 +180,47 @@ export default function ContactPrintOrderPage() {
   const handleCompanyInputChange = (value: string) => {
     setCompanySearchText(value)
     setShowCompanyList(true)
-    setSelectedCompanyId('')
-    setContacts([])
     setMessage('')
 
-    const trimmedValue = value.trim().toLowerCase()
+    const searchText = value.trim().toLowerCase()
 
-    if (!trimmedValue) return
+    if (!searchText) {
+      setSelectedCompanyId('')
+      setContacts([])
+      return
+    }
 
     const matchedCompany = companies.find(
-      (company) => company.customer_name.trim().toLowerCase() === trimmedValue
+      (company) => company.customer_name.trim().toLowerCase() === searchText
     )
 
     if (matchedCompany) {
-      setSelectedCompanyId(String(matchedCompany.id))
+      const matchedCompanyId = String(matchedCompany.id)
+
+      if (matchedCompanyId !== selectedCompanyId) {
+        setSelectedCompanyId(matchedCompanyId)
+      }
+    } else {
+      setSelectedCompanyId('')
+      setContacts([])
     }
   }
 
-  const handleCompanySelect = (company: Company) => {
-    setSelectedCompanyId(String(company.id))
+  const handleCompanySelect = async (company: Company) => {
+    const nextCompanyId = String(company.id)
+
     setCompanySearchText(company.customer_name)
     setShowCompanyList(false)
-    setContacts([])
     setMessage('')
+
+    if (nextCompanyId === selectedCompanyId) {
+      if (contacts.length === 0) {
+        await loadContactsByCompanyId(nextCompanyId)
+      }
+      return
+    }
+
+    setSelectedCompanyId(nextCompanyId)
   }
 
   const updatePrintOrder = (id: number, value: string) => {
@@ -234,7 +259,7 @@ export default function ContactPrintOrderPage() {
     setMessage('')
 
     if (!selectedCompanyId) {
-      setMessage('고객사를 선택해 주세요.')
+      setMessage('고객사를 목록에서 선택해 주세요.')
       return
     }
 
@@ -285,40 +310,31 @@ export default function ContactPrintOrderPage() {
             </h1>
 
             <p className="mt-2 text-slate-600">
-              고객사를 검색하여 선택한 뒤, 담당자 출력순서를 관리할 수 있습니다.
+              고객사를 검색하여 선택한 뒤, 담당자 출력순서를 관리할 수
+              있습니다.
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-[1fr_auto_auto]">
               <div ref={companyDropdownRef} className="relative">
-                <div className="flex h-12 w-full overflow-hidden rounded-xl border border-gray-300 bg-white">
-                  <input
-                    type="text"
-                    value={companySearchText}
-                    onChange={(e) => handleCompanyInputChange(e.target.value)}
-                    onFocus={() => setShowCompanyList(true)}
-                    placeholder="고객사를 선택하세요"
-                    className="h-full min-w-0 flex-1 bg-white px-4 py-0 text-black outline-none placeholder:text-gray-500"
-                  />
-
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setShowCompanyList((prev) => !prev)}
-                    className="flex h-full w-12 items-center justify-center bg-white text-black"
-                  >
-                    ▼
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  value={companySearchText}
+                  onChange={(e) => handleCompanyInputChange(e.target.value)}
+                  onFocus={() => setShowCompanyList(true)}
+                  placeholder="고객사를 선택하세요"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
+                />
 
                 {showCompanyList && (
-                  <div className="absolute left-0 right-0 z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-gray-300 bg-white py-1 shadow-lg">
+                  <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
                     {filteredCompanies.length > 0 ? (
                       filteredCompanies.map((company) => (
                         <button
                           key={company.id}
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => handleCompanySelect(company)}
-                          className={`block w-full px-4 py-3 text-left text-sm text-black hover:bg-blue-50 ${
+                          className={`block w-full px-4 py-3 text-left text-black hover:bg-blue-50 ${
                             String(selectedCompanyId) === String(company.id)
                               ? 'bg-blue-50 font-semibold'
                               : 'bg-white'

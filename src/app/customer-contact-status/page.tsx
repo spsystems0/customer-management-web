@@ -126,6 +126,10 @@ export default function CustomerContactStatusPage() {
         !companyDropdownRef.current.contains(event.target as Node)
       ) {
         setShowCompanyList(false)
+
+        if (selectedCompanyId === 'all' && companySearchText.trim() === '') {
+          setCompanySearchText('전체')
+        }
       }
     }
 
@@ -136,7 +140,7 @@ export default function CustomerContactStatusPage() {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('touchstart', handleClickOutside)
     }
-  }, [])
+  }, [selectedCompanyId, companySearchText])
 
   const companyMap = useMemo(() => {
     const map = new Map<string, Company>()
@@ -197,6 +201,15 @@ export default function CustomerContactStatusPage() {
     })
   }, [contacts, companyMap])
 
+  function handleCompanyFocus() {
+    setShowCompanyList(true)
+
+    if (companySearchText.trim() === '전체') {
+      setCompanySearchText('')
+      setSelectedCompanyId('all')
+    }
+  }
+
   function handleCompanyInputChange(value: string) {
     setCompanySearchText(value)
     setShowCompanyList(true)
@@ -204,7 +217,9 @@ export default function CustomerContactStatusPage() {
     setContacts([])
     setMessage('')
 
-    if (!value.trim() || value.trim() === '전체') {
+    const trimmedValue = value.trim()
+
+    if (!trimmedValue || trimmedValue === '전체') {
       setSelectedCompanyId('all')
       return
     }
@@ -212,7 +227,7 @@ export default function CustomerContactStatusPage() {
     const matchedCompany = companies.find(
       (company) =>
         company.customer_name.trim().toLowerCase() ===
-        value.trim().toLowerCase()
+        trimmedValue.toLowerCase()
     )
 
     if (matchedCompany) {
@@ -425,7 +440,7 @@ export default function CustomerContactStatusPage() {
                         onChange={(e) =>
                           handleCompanyInputChange(e.target.value)
                         }
-                        onFocus={() => setShowCompanyList(true)}
+                        onFocus={handleCompanyFocus}
                         placeholder="전체 또는 고객사명을 입력하세요"
                         className="h-full min-w-0 flex-1 bg-white px-4 py-0 text-black outline-none placeholder:text-gray-500"
                       />
@@ -433,7 +448,13 @@ export default function CustomerContactStatusPage() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => setShowCompanyList((prev) => !prev)}
+                        onClick={() => {
+                          if (companySearchText.trim() === '전체') {
+                            setCompanySearchText('')
+                          }
+
+                          setShowCompanyList((prev) => !prev)
+                        }}
                         className="flex h-full w-12 items-center justify-center bg-white text-black"
                       >
                         ▼
@@ -444,6 +465,7 @@ export default function CustomerContactStatusPage() {
                       <div className="absolute left-0 right-0 z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-gray-300 bg-white py-1 shadow-lg">
                         <button
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={handleSelectAllCompany}
                           className={`block w-full px-4 py-3 text-left text-sm text-black hover:bg-blue-50 ${
                             selectedCompanyId === 'all'
@@ -459,6 +481,7 @@ export default function CustomerContactStatusPage() {
                             <button
                               key={company.id}
                               type="button"
+                              onMouseDown={(e) => e.preventDefault()}
                               onClick={() => handleCompanySelect(company)}
                               className={`block w-full px-4 py-3 text-left text-sm text-black hover:bg-blue-50 ${
                                 String(selectedCompanyId) === String(company.id)
