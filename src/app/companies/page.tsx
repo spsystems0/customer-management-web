@@ -29,7 +29,7 @@ type CustomerCategoryCode = {
 }
 
 export default function CompaniesPage() {
-  const companyListRef = useRef<HTMLDivElement | null>(null)
+  const companyDropdownRef = useRef<HTMLDivElement | null>(null)
 
   const [companies, setCompanies] = useState<Company[]>([])
   const [categoryCodes, setCategoryCodes] = useState<CustomerCategoryCode[]>([])
@@ -39,6 +39,7 @@ export default function CompaniesPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const [companySearchText, setCompanySearchText] = useState('')
   const [showCompanyList, setShowCompanyList] = useState(false)
+  const [autoLoadedCompanyId, setAutoLoadedCompanyId] = useState('')
 
   const [editingId, setEditingId] = useState<number | null>(null)
 
@@ -76,10 +77,10 @@ export default function CompaniesPage() {
   }, [])
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (
-        companyListRef.current &&
-        !companyListRef.current.contains(event.target as Node)
+        companyDropdownRef.current &&
+        !companyDropdownRef.current.contains(event.target as Node)
       ) {
         setShowCompanyList(false)
       }
@@ -93,6 +94,44 @@ export default function CompaniesPage() {
       document.removeEventListener('touchstart', handleClickOutside)
     }
   }, [])
+
+  useEffect(() => {
+    if (loading) return
+    if (companies.length === 0) return
+    if (autoLoadedCompanyId) return
+
+    const params = new URLSearchParams(window.location.search)
+    const companyIdFromUrl = params.get('companyId')
+    const customerNameFromUrl = params.get('customerName')
+
+    if (!companyIdFromUrl && !customerNameFromUrl) return
+
+    let matchedCompany: Company | undefined
+
+    if (companyIdFromUrl) {
+      matchedCompany = companies.find(
+        (company) => String(company.id) === String(companyIdFromUrl)
+      )
+    }
+
+    if (!matchedCompany && customerNameFromUrl) {
+      matchedCompany = companies.find(
+        (company) =>
+          company.customer_name.trim().toLowerCase() ===
+          customerNameFromUrl.trim().toLowerCase()
+      )
+    }
+
+    setAutoLoadedCompanyId(companyIdFromUrl || customerNameFromUrl || 'loaded')
+
+    if (!matchedCompany) {
+      setMessage('선택한 고객사 정보를 찾을 수 없습니다.')
+      return
+    }
+
+    fillCompanyForm(matchedCompany)
+    setMessage('선택한 고객사 정보를 불러왔습니다.')
+  }, [loading, companies, autoLoadedCompanyId])
 
   const filteredCompanies = useMemo(() => {
     const searchText = companySearchText.trim().toLowerCase()
@@ -132,7 +171,7 @@ export default function CompaniesPage() {
       return
     }
 
-    setCompanies(data || [])
+    setCompanies((data as Company[]) || [])
     setLoadingList(false)
   }
 
@@ -148,7 +187,29 @@ export default function CompaniesPage() {
       return
     }
 
-    setCategoryCodes(data || [])
+    setCategoryCodes((data as CustomerCategoryCode[]) || [])
+  }
+
+  const fillCompanyForm = (company: Company) => {
+    setSelectedCompanyId(String(company.id))
+    setCompanySearchText(company.customer_name || '')
+    setShowCompanyList(false)
+
+    setEditingId(company.id)
+    setCustomerName(company.customer_name || '')
+    setBusinessNumber(company.business_number || '')
+    setIndustry(company.industry || '')
+    setAddress(company.address || '')
+    setMainProduct(company.main_product || '')
+    setHomepage(company.homepage || '')
+    setTransactionStartDate(company.transaction_start_date || '')
+    setSalesOwner(company.sales_owner || '')
+    setRevenue(company.revenue || '')
+    setEmployeeCount(
+      company.employee_count !== null ? String(company.employee_count) : ''
+    )
+    setNote(company.note || '')
+    setCustomerCategoryCode(company.customer_category_code || '')
   }
 
   const resetForm = () => {
@@ -188,7 +249,6 @@ export default function CompaniesPage() {
 
   const handleLoadCompany = () => {
     setMessage('')
-    setShowCompanyList(false)
 
     if (!selectedCompanyId) {
       setMessage('불러올 고객사를 목록에서 선택해 주세요.')
@@ -204,28 +264,13 @@ export default function CompaniesPage() {
       return
     }
 
-    setEditingId(company.id)
-    setCustomerName(company.customer_name || '')
-    setBusinessNumber(company.business_number || '')
-    setIndustry(company.industry || '')
-    setAddress(company.address || '')
-    setMainProduct(company.main_product || '')
-    setHomepage(company.homepage || '')
-    setTransactionStartDate(company.transaction_start_date || '')
-    setSalesOwner(company.sales_owner || '')
-    setRevenue(company.revenue || '')
-    setEmployeeCount(
-      company.employee_count !== null ? String(company.employee_count) : ''
-    )
-    setNote(company.note || '')
-    setCustomerCategoryCode(company.customer_category_code || '')
+    fillCompanyForm(company)
     setMessage('고객사 정보를 불러왔습니다.')
   }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setMessage('')
-    setShowCompanyList(false)
 
     const trimmedCustomerName = customerName.trim()
     const trimmedBusinessNumber = businessNumber.trim()
@@ -253,9 +298,7 @@ export default function CompaniesPage() {
     }
 
     if (duplicateNameData && duplicateNameData.length > 0) {
-      const warningMessage =
-        '같은 고객사명이 이미 등록되어 있습니다.\n중복 입력 여부를 확인해 주세요.'
-      alert(warningMessage)
+      alert('같은 고객사명이 이미 등록되어 있습니다.\n중복 입력 여부를 확인해 주세요.')
       setMessage('같은 고객사명이 이미 등록되어 있습니다.')
       return
     }
@@ -279,9 +322,7 @@ export default function CompaniesPage() {
       }
 
       if (duplicateBusinessData && duplicateBusinessData.length > 0) {
-        const warningMessage =
-          '동일한 사업자번호가 이미 등록되어 있습니다.\n중복 입력 여부를 확인해 주세요.'
-        alert(warningMessage)
+        alert('동일한 사업자번호가 이미 등록되어 있습니다.\n중복 입력 여부를 확인해 주세요.')
         setMessage('동일한 사업자번호가 이미 등록되어 있습니다.')
         return
       }
@@ -313,13 +354,13 @@ export default function CompaniesPage() {
         return
       }
 
-      alert('수정 내용이 저장되었습니다.')
-      setMessage('고객사 정보가 수정되었습니다.')
       await fetchCompanies()
 
       setSelectedCompanyId(String(editingId))
       setCompanySearchText(trimmedCustomerName)
 
+      alert('Save Complete')
+      setMessage('고객사 정보가 수정되었습니다.')
       return
     }
 
@@ -330,14 +371,15 @@ export default function CompaniesPage() {
       return
     }
 
-    setMessage('고객사 정보가 저장되었습니다.')
     await fetchCompanies()
     resetForm()
+
+    alert('Save Complete')
+    setMessage('고객사 정보가 저장되었습니다.')
   }
 
   const handleDelete = async () => {
     setMessage('')
-    setShowCompanyList(false)
 
     if (!editingId) {
       setMessage('삭제할 고객사를 먼저 불러와 주세요.')
@@ -357,9 +399,9 @@ export default function CompaniesPage() {
       return
     }
 
-    setMessage('고객사 정보가 삭제되었습니다.')
     await fetchCompanies()
     resetForm()
+    setMessage('고객사 정보가 삭제되었습니다.')
   }
 
   if (loading) {
@@ -391,7 +433,7 @@ export default function CompaniesPage() {
               </h2>
 
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto_auto]">
-                <div ref={companyListRef} className="relative">
+                <div ref={companyDropdownRef} className="relative">
                   <input
                     type="text"
                     value={companySearchText}
@@ -410,8 +452,13 @@ export default function CompaniesPage() {
                           <button
                             key={company.id}
                             type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={() => handleCompanySelect(company)}
-                            className="block w-full px-4 py-3 text-left text-black hover:bg-blue-50"
+                            className={`block w-full px-4 py-3 text-left text-black hover:bg-blue-50 ${
+                              String(selectedCompanyId) === String(company.id)
+                                ? 'bg-blue-50 font-semibold'
+                                : 'bg-white'
+                            }`}
                           >
                             {company.customer_name}
                           </button>
@@ -465,6 +512,7 @@ export default function CompaniesPage() {
                 className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
               >
                 <option value="">고객분류코드를 선택하세요</option>
+
                 {categoryCodes.map((item) => (
                   <option key={item.id} value={item.code}>
                     {item.code} - {item.code_name}
@@ -535,7 +583,7 @@ export default function CompaniesPage() {
                 className="min-h-[120px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 md:col-span-2"
               />
 
-              <div className="mt-4 flex gap-3 md:col-span-2">
+              <div className="mt-4 flex flex-wrap gap-3 md:col-span-2">
                 <button
                   type="submit"
                   className="rounded-xl bg-blue-700 px-6 py-3 font-medium text-white hover:bg-blue-800"

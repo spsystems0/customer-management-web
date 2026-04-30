@@ -138,6 +138,13 @@ export default function Sidebar({ mode }: SidebarProps) {
           </Link>
 
           <Link
+            href="/customer-company-status"
+            className={`${menuClass} bg-indigo-50 text-indigo-900 hover:bg-indigo-100`}
+          >
+            고객사 현황
+          </Link>
+
+          <Link
             href="/customer-contact-status"
             className={`${menuClass} bg-teal-50 text-teal-900 hover:bg-teal-100`}
           >
