@@ -231,6 +231,8 @@ export default function CompaniesPage() {
     setNote('')
     setCustomerCategoryCode('')
     setMessage('')
+
+    window.history.replaceState(null, '', '/companies')
   }
 
   const handleCompanyInputChange = (value: string) => {
@@ -490,7 +492,10 @@ export default function CompaniesPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-8 grid gap-4 md:grid-cols-2">
+            <form
+              onSubmit={handleSubmit}
+              className="mt-8 grid gap-4 md:grid-cols-2"
+            >
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}

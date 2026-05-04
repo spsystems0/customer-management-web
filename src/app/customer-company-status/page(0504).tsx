@@ -1,11 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
 import { supabase } from '../../lib/supabase'
-
-const CUSTOMER_COMPANY_STATUS_STATE_KEY = 'customer-company-status-last-view'
 
 type Company = {
   id: number
@@ -87,8 +85,6 @@ const koreanCollator = new Intl.Collator('ko-KR', {
 
 export default function CustomerCompanyStatusPage() {
   const router = useRouter()
-  const restoredRef = useRef(false)
-  const restoringRef = useRef(false)
 
   const [companies, setCompanies] = useState<Company[]>([])
   const [categoryCodes, setCategoryCodes] = useState<CustomerCategoryCode[]>([])
@@ -210,114 +206,7 @@ export default function CustomerCompanyStatusPage() {
     )
   }, [searchedCompanies, categoryCodeMap])
 
-  const saveCurrentView = useCallback((categoryCode: string) => {
-    sessionStorage.setItem(
-      CUSTOMER_COMPANY_STATUS_STATE_KEY,
-      JSON.stringify({
-        selectedCategoryCode: categoryCode,
-        hasSearched: true,
-      })
-    )
-  }, [])
-
-  const clearSavedView = useCallback(() => {
-    sessionStorage.removeItem(CUSTOMER_COMPANY_STATUS_STATE_KEY)
-  }, [])
-
-  const searchCompaniesByCategory = useCallback(
-    async (categoryCode: string, shouldSaveCurrentView = true) => {
-      setMessage('')
-      setSearchedCompanies([])
-      setHasSearched(false)
-      setLoadingCompanies(true)
-
-      let result = [...companies]
-
-      if (categoryCode !== 'all') {
-        result = result.filter(
-          (company) => company.customer_category_code === categoryCode
-        )
-      }
-
-      result.sort((a, b) =>
-        koreanCollator.compare(
-          getSortName(a.customer_name || ''),
-          getSortName(b.customer_name || '')
-        )
-      )
-
-      setSelectedCategoryCode(categoryCode)
-      setSearchedCompanies(result)
-      setHasSearched(true)
-      setLoadingCompanies(false)
-
-      if (shouldSaveCurrentView) {
-        saveCurrentView(categoryCode)
-      }
-    },
-    [companies, saveCurrentView]
-  )
-
-  const restoreLastView = useCallback(async () => {
-    if (loading) return
-    if (companies.length === 0) return
-    if (restoringRef.current) return
-
-    const savedValue = sessionStorage.getItem(CUSTOMER_COMPANY_STATUS_STATE_KEY)
-
-    if (!savedValue) return
-
-    try {
-      restoringRef.current = true
-
-      const savedState = JSON.parse(savedValue) as {
-        selectedCategoryCode?: string
-        hasSearched?: boolean
-      }
-
-      if (!savedState.hasSearched) {
-        sessionStorage.removeItem(CUSTOMER_COMPANY_STATUS_STATE_KEY)
-        return
-      }
-
-      const savedCategoryCode = savedState.selectedCategoryCode || 'all'
-
-      await searchCompaniesByCategory(savedCategoryCode, false)
-
-      sessionStorage.removeItem(CUSTOMER_COMPANY_STATUS_STATE_KEY)
-    } catch {
-      sessionStorage.removeItem(CUSTOMER_COMPANY_STATUS_STATE_KEY)
-    } finally {
-      restoringRef.current = false
-    }
-  }, [loading, companies.length, searchCompaniesByCategory])
-
-  useEffect(() => {
-    if (restoredRef.current) return
-    if (loading) return
-    if (companies.length === 0) return
-
-    restoredRef.current = true
-    restoreLastView()
-  }, [loading, companies.length, restoreLastView])
-
-  useEffect(() => {
-    const handlePageShow = () => {
-      if (loading) return
-      if (companies.length === 0) return
-
-      restoreLastView()
-    }
-
-    window.addEventListener('pageshow', handlePageShow)
-
-    return () => {
-      window.removeEventListener('pageshow', handlePageShow)
-    }
-  }, [loading, companies.length, restoreLastView])
-
   function handleCategoryChange(value: string) {
-    clearSavedView()
     setSelectedCategoryCode(value)
     setHasSearched(false)
     setSearchedCompanies([])
@@ -325,12 +214,32 @@ export default function CustomerCompanyStatusPage() {
   }
 
   async function handleSearch() {
-    await searchCompaniesByCategory(selectedCategoryCode)
+    setMessage('')
+    setSearchedCompanies([])
+    setHasSearched(false)
+    setLoadingCompanies(true)
+
+    let result = [...companies]
+
+    if (selectedCategoryCode !== 'all') {
+      result = result.filter(
+        (company) => company.customer_category_code === selectedCategoryCode
+      )
+    }
+
+    result.sort((a, b) =>
+      koreanCollator.compare(
+        getSortName(a.customer_name || ''),
+        getSortName(b.customer_name || '')
+      )
+    )
+
+    setSearchedCompanies(result)
+    setHasSearched(true)
+    setLoadingCompanies(false)
   }
 
   function handleCompanyClick(companyId: number) {
-    saveCurrentView(selectedCategoryCode)
-
     const params = new URLSearchParams()
 
     params.set('companyId', String(companyId))
