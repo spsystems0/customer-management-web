@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import ProgramUsageLogger from './ProgramUsageLogger'
 
 type SidebarProps = {
   mode: 'guest' | 'sales'
@@ -54,6 +55,7 @@ export default function Sidebar({ mode }: SidebarProps) {
 
   return (
     <aside className="h-screen w-[320px] overflow-y-auto border-r border-slate-200 bg-white/70 px-4 py-5">
+      <ProgramUsageLogger mode={mode} />
       <div className="mb-4">
         <h1 className="text-[19px] font-bold text-slate-900">
           고객관리 시스템
@@ -191,6 +193,13 @@ export default function Sidebar({ mode }: SidebarProps) {
             className={`${menuClass} bg-cyan-50 text-cyan-900 hover:bg-cyan-100`}
           >
             담당자 출력순서 관리
+          </Link>
+
+          <Link
+            href="/sales-program-usage"
+            className={`${menuClass} bg-amber-50 text-amber-900 hover:bg-amber-100`}
+          >
+            프로그램 사용현황
           </Link>
 
           <button
