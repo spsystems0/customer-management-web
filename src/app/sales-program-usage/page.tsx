@@ -4,9 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import Sidebar from '../../components/Sidebar'
 import { supabase } from '../../lib/supabase'
 
+const EXCLUDED_ADMIN_EMAIL = 'admin@spsystems.co.kr'
+const EXCLUDED_ADMIN_DISPLAY_NAME = 'administrator'
+
 type SalesUser = {
   id: string
   display_name: string | null
+  email: string | null
 }
 
 type UsageLog = {
@@ -98,6 +102,19 @@ function getTodayString() {
   return `${yyyy}${mm}${dd}`
 }
 
+function isExcludedAdminUser(
+  email: string | null | undefined,
+  displayName: string | null | undefined
+) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  const normalizedDisplayName = (displayName || '').trim().toLowerCase()
+
+  return (
+    normalizedEmail === EXCLUDED_ADMIN_EMAIL ||
+    normalizedDisplayName === EXCLUDED_ADMIN_DISPLAY_NAME
+  )
+}
+
 export default function SalesProgramUsagePage() {
   const [salesUsers, setSalesUsers] = useState<SalesUser[]>([])
   const [selectedUserId, setSelectedUserId] = useState('all')
@@ -129,7 +146,7 @@ export default function SalesProgramUsagePage() {
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, display_name')
+        .select('id, display_name, email')
         .order('display_name', { ascending: true })
 
       if (userError) {
@@ -139,7 +156,11 @@ export default function SalesProgramUsagePage() {
         return
       }
 
-      setSalesUsers((userData as SalesUser[]) || [])
+    const filteredUsers = ((userData as SalesUser[]) || []).filter(
+      (user) => !isExcludedAdminUser(user.email, user.display_name)
+    )
+
+      setSalesUsers(filteredUsers)
       setLoading(false)
     }
 
@@ -158,6 +179,7 @@ export default function SalesProgramUsagePage() {
 
   const displayRows = useMemo<DisplayRow[]>(() => {
     return logs
+      .filter((log) => !isExcludedAdminUser(log.user_email, log.display_name))
       .map((log) => {
         const user = userMap.get(String(log.user_id))
 
@@ -222,6 +244,8 @@ export default function SalesProgramUsagePage() {
       )
       .gte('used_at', startDate)
       .lt('used_at', endDate)
+      .neq('user_email', EXCLUDED_ADMIN_EMAIL)
+      .neq('display_name', 'Administrator')
 
     if (selectedUserId !== 'all') {
       query = query.eq('user_id', selectedUserId)
@@ -237,7 +261,11 @@ export default function SalesProgramUsagePage() {
       return
     }
 
-    setLogs((data as UsageLog[]) || [])
+    const filteredLogs = ((data as UsageLog[]) || []).filter(
+      (log) => !isExcludedAdminEmail(log.user_email)
+    )
+
+    setLogs(filteredLogs)
     setHasSearched(true)
     setLoadingLogs(false)
   }
