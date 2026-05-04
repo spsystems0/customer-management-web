@@ -32,6 +32,24 @@ type DisplayRow = {
   rawUsedAt: string
 }
 
+const koreaDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const koreaDateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+})
+
 function getCurrentMonth() {
   const today = new Date()
   const year = today.getFullYear()
@@ -57,31 +75,11 @@ function getNextMonthStart(monthValue: string) {
 }
 
 function getKoreaDate(value: string) {
-  const date = new Date(value)
-
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-
-  return formatter.format(date)
+  return koreaDateFormatter.format(new Date(value))
 }
 
 function getKoreaDateTime(value: string) {
-  const date = new Date(value)
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(date)
+  return koreaDateTimeFormatter.format(new Date(value))
 }
 
 function escapeHtml(value: string) {
@@ -147,6 +145,7 @@ export default function SalesProgramUsagePage() {
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id, display_name, email')
+        .neq('email', EXCLUDED_ADMIN_EMAIL)
         .order('display_name', { ascending: true })
 
       if (userError) {
@@ -156,9 +155,9 @@ export default function SalesProgramUsagePage() {
         return
       }
 
-    const filteredUsers = ((userData as SalesUser[]) || []).filter(
-      (user) => !isExcludedAdminUser(user.email, user.display_name)
-    )
+      const filteredUsers = ((userData as SalesUser[]) || []).filter(
+        (user) => !isExcludedAdminUser(user.email, user.display_name)
+      )
 
       setSalesUsers(filteredUsers)
       setLoading(false)
@@ -178,32 +177,18 @@ export default function SalesProgramUsagePage() {
   }, [salesUsers])
 
   const displayRows = useMemo<DisplayRow[]>(() => {
-    return logs
-      .filter((log) => !isExcludedAdminUser(log.user_email, log.display_name))
-      .map((log) => {
-        const user = userMap.get(String(log.user_id))
+    return logs.map((log) => {
+      const user = userMap.get(String(log.user_id))
 
-        return {
-          usedDate: getKoreaDate(log.used_at),
-          displayName: user?.display_name || log.display_name || '-',
-          programName: log.program_name || '-',
-          programPath: log.program_path || '-',
-          usedAt: getKoreaDateTime(log.used_at),
-          rawUsedAt: log.used_at,
-        }
-      })
-      .sort((a, b) => {
-        const dateCompare =
-          new Date(b.rawUsedAt).getTime() - new Date(a.rawUsedAt).getTime()
-
-        if (dateCompare !== 0) return dateCompare
-
-        if (a.displayName !== b.displayName) {
-          return a.displayName.localeCompare(b.displayName, 'ko')
-        }
-
-        return a.programName.localeCompare(b.programName, 'ko')
-      })
+      return {
+        usedDate: getKoreaDate(log.used_at),
+        displayName: user?.display_name || log.display_name || '-',
+        programName: log.program_name || '-',
+        programPath: log.program_path || '-',
+        usedAt: getKoreaDateTime(log.used_at),
+        rawUsedAt: log.used_at,
+      }
+    })
   }, [logs, userMap])
 
   function resetSearchResult() {
@@ -245,15 +230,13 @@ export default function SalesProgramUsagePage() {
       .gte('used_at', startDate)
       .lt('used_at', endDate)
       .neq('user_email', EXCLUDED_ADMIN_EMAIL)
-      .neq('display_name', 'Administrator')
+      .order('used_at', { ascending: false })
 
     if (selectedUserId !== 'all') {
       query = query.eq('user_id', selectedUserId)
     }
 
-    const { data, error } = await query.order('used_at', {
-      ascending: false,
-    })
+    const { data, error } = await query
 
     if (error) {
       setMessage(`프로그램 사용현황 조회 실패: ${error.message}`)
@@ -262,7 +245,7 @@ export default function SalesProgramUsagePage() {
     }
 
     const filteredLogs = ((data as UsageLog[]) || []).filter(
-      (log) => !isExcludedAdminEmail(log.user_email)
+      (log) => !isExcludedAdminUser(log.user_email, log.display_name)
     )
 
     setLogs(filteredLogs)
