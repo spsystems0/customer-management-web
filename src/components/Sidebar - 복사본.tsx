@@ -5,10 +5,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import ProgramUsageLogger from './ProgramUsageLogger'
 
-type SidebarMode = 'guest' | 'sales'
-
 type SidebarProps = {
-  mode?: SidebarMode
+  mode: 'guest' | 'sales'
 }
 
 type LoginUserInfo = {
@@ -17,36 +15,31 @@ type LoginUserInfo = {
 }
 
 export default function Sidebar({ mode }: SidebarProps) {
-  const [resolvedMode, setResolvedMode] = useState<SidebarMode>('guest')
   const [userInfo, setUserInfo] = useState<LoginUserInfo | null>(null)
-  const [checkingSession, setCheckingSession] = useState(true)
 
   useEffect(() => {
     const loadUserInfo = async () => {
-      setCheckingSession(true)
+      if (mode !== 'sales') {
+        setUserInfo(null)
+        return
+      }
 
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (user) {
-        setResolvedMode('sales')
-
-        setUserInfo({
-          email: user.email || '',
-          displayName:
-            (user.user_metadata?.display_name as string) ||
-            (user.user_metadata?.name as string) ||
-            '',
-        })
-
-        setCheckingSession(false)
+      if (!user) {
+        setUserInfo(null)
         return
       }
 
-      setResolvedMode('guest')
-      setUserInfo(null)
-      setCheckingSession(false)
+      setUserInfo({
+        email: user.email || '',
+        displayName:
+          (user.user_metadata?.display_name as string) ||
+          (user.user_metadata?.name as string) ||
+          '',
+      })
     }
 
     loadUserInfo()
@@ -67,23 +60,9 @@ export default function Sidebar({ mode }: SidebarProps) {
   const buttonMenuClass =
     'block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition'
 
-  if (checkingSession) {
-    return (
-      <aside className="h-screen w-[320px] overflow-y-auto border-r border-slate-200 bg-white/70 px-4 py-5">
-        <div className="mb-4">
-          <h1 className="text-[19px] font-bold text-slate-900">
-            고객관리 시스템
-          </h1>
-
-          <p className="mt-1 text-xs text-slate-600">로그인 확인 중...</p>
-        </div>
-      </aside>
-    )
-  }
-
   return (
     <aside className="h-screen w-[320px] overflow-y-auto border-r border-slate-200 bg-white/70 px-4 py-5">
-      <ProgramUsageLogger mode={resolvedMode} />
+      <ProgramUsageLogger mode={mode} />
 
       <div className="mb-4">
         <h1 className="text-[19px] font-bold text-slate-900">
@@ -91,10 +70,10 @@ export default function Sidebar({ mode }: SidebarProps) {
         </h1>
 
         <p className="mt-1 text-xs text-slate-600">
-          {resolvedMode === 'sales' ? '영업담당자 업무 메뉴' : '일반조회 메뉴'}
+          {mode === 'sales' ? '영업담당자 업무 메뉴' : '일반조회 메뉴'}
         </p>
 
-        {resolvedMode === 'sales' && (
+        {mode === 'sales' && (
           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
             <div className="text-xs font-semibold text-slate-500">
               현재 로그인 정보
@@ -115,7 +94,7 @@ export default function Sidebar({ mode }: SidebarProps) {
         )}
       </div>
 
-      {resolvedMode === 'guest' ? (
+      {mode === 'guest' ? (
         <nav className="space-y-2">
           <Link
             href="/company-cards"
@@ -169,7 +148,7 @@ export default function Sidebar({ mode }: SidebarProps) {
           </Link>
 
           <Link
-            href="/customer-company-status?reset=1"
+            href="/customer-company-status"
             className={`${menuClass} bg-indigo-50 text-indigo-900 hover:bg-indigo-100`}
           >
             고객사 현황
