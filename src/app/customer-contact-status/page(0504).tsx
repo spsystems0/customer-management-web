@@ -24,13 +24,6 @@ type ContactRow = {
   print_order: number | null
 }
 
-type ContactOption = {
-  id: number
-  company_id: number
-  name: string | null
-  print_order: number | null
-}
-
 type DisplayRow = {
   companyId: number
   contactId: number
@@ -80,9 +73,10 @@ export default function CustomerContactStatusPage() {
   const router = useRouter()
   const companyDropdownRef = useRef<HTMLDivElement | null>(null)
   const restoredRef = useRef(false)
+  const restoringRef = useRef(false)
 
   const [companies, setCompanies] = useState<Company[]>([])
-  const [contactOptions, setContactOptions] = useState<ContactOption[]>([])
+  const [contactOptions, setContactOptions] = useState<ContactRow[]>([])
   const [contacts, setContacts] = useState<ContactRow[]>([])
 
   const [selectedCompanyId, setSelectedCompanyId] = useState('all')
@@ -95,24 +89,6 @@ export default function CustomerContactStatusPage() {
   const [loadingContacts, setLoadingContacts] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const reset = params.get('reset')
-
-    if (reset === '1') {
-      sessionStorage.removeItem(CUSTOMER_CONTACT_STATUS_STATE_KEY)
-
-      setSelectedCompanyId('all')
-      setSelectedContactId('all')
-      setCompanySearchText('전체')
-      setContacts([])
-      setHasSearched(false)
-      setMessage('')
-
-      window.history.replaceState(null, '', '/customer-contact-status')
-    }
-  }, [])
 
   useEffect(() => {
     const initialize = async () => {
@@ -129,7 +105,7 @@ export default function CustomerContactStatusPage() {
         return
       }
 
-      const [companyRes, contactOptionRes] = await Promise.all([
+      const [companyRes, contactRes] = await Promise.all([
         supabase
           .from('companies')
           .select('id, customer_name')
@@ -137,33 +113,38 @@ export default function CustomerContactStatusPage() {
 
         supabase
           .from('contacts')
-          .select('id, company_id, name, print_order')
+          .select(
+            'id, company_id, name, position, department, phone, email, work_location, print_order'
+          )
           .order('print_order', { ascending: true })
           .order('name', { ascending: true }),
       ])
 
+      const messages: string[] = []
+
       if (companyRes.error) {
-        setMessage(`고객사 목록 조회 실패: ${companyRes.error.message}`)
+        messages.push(`고객사 목록 조회 실패: ${companyRes.error.message}`)
+      }
+
+      if (contactRes.error) {
+        messages.push(`담당자 목록 조회 실패: ${contactRes.error.message}`)
+      }
+
+      if (messages.length > 0) {
+        setMessage(messages.join('\n'))
         setLoading(false)
         return
       }
 
-      if (contactOptionRes.error) {
-        setMessage(`담당자 목록 조회 실패: ${contactOptionRes.error.message}`)
-        setLoading(false)
-        return
-      }
-
-      const sortedCompanies = [...((companyRes.data as Company[]) || [])].sort(
-        (a, b) =>
-          koreanCollator.compare(
-            getSortName(a.customer_name || ''),
-            getSortName(b.customer_name || '')
-          )
+      const sortedCompanies = [...(companyRes.data || [])].sort((a, b) =>
+        koreanCollator.compare(
+          getSortName(a.customer_name || ''),
+          getSortName(b.customer_name || '')
+        )
       )
 
       setCompanies(sortedCompanies)
-      setContactOptions((contactOptionRes.data as ContactOption[]) || [])
+      setContactOptions((contactRes.data as ContactRow[]) || [])
       setLoading(false)
     }
 
@@ -232,10 +213,8 @@ export default function CustomerContactStatusPage() {
     }
 
     return result.sort((a, b) => {
-      const aCompanyName =
-        companyMap.get(String(a.company_id))?.customer_name || ''
-      const bCompanyName =
-        companyMap.get(String(b.company_id))?.customer_name || ''
+      const aCompanyName = companyMap.get(String(a.company_id))?.customer_name || ''
+      const bCompanyName = companyMap.get(String(b.company_id))?.customer_name || ''
 
       const companyCompare = koreanCollator.compare(
         getSortName(aCompanyName),
@@ -244,9 +223,24 @@ export default function CustomerContactStatusPage() {
 
       if (companyCompare !== 0) return companyCompare
 
-      return koreanCollator.compare(a.name || '', b.name || '')
+      return koreanCollator.compare(
+        getSortName(a.name || ''),
+        getSortName(b.name || '')
+      )
     })
   }, [contactOptions, selectedCompanyId, companyMap])
+
+  useEffect(() => {
+    if (selectedContactId === 'all') return
+
+    const exists = filteredContactOptions.some(
+      (contact) => String(contact.id) === String(selectedContactId)
+    )
+
+    if (!exists) {
+      setSelectedContactId('all')
+    }
+  }, [filteredContactOptions, selectedContactId])
 
   const displayRows = useMemo<DisplayRow[]>(() => {
     const rows = contacts.map((contact) => {
@@ -281,13 +275,13 @@ export default function CustomerContactStatusPage() {
   }, [contacts, companyMap])
 
   const saveCurrentView = useCallback(
-    (companyId: string, contactId: string, searchText: string) => {
+    (companyId: string, searchText: string, contactId: string) => {
       sessionStorage.setItem(
         CUSTOMER_CONTACT_STATUS_STATE_KEY,
         JSON.stringify({
           selectedCompanyId: companyId,
-          selectedContactId: contactId,
           companySearchText: searchText,
+          selectedContactId: contactId,
           hasSearched: true,
         })
       )
@@ -302,8 +296,8 @@ export default function CustomerContactStatusPage() {
   const loadContactsByCondition = useCallback(
     async (
       companyId: string,
-      contactId: string,
       searchText: string,
+      contactId: string,
       shouldSaveCurrentView = true
     ) => {
       setMessage('')
@@ -361,14 +355,14 @@ export default function CustomerContactStatusPage() {
       const finalSearchText = searchText || (companyId === 'all' ? '전체' : '')
 
       setSelectedCompanyId(companyId)
-      setSelectedContactId(contactId)
       setCompanySearchText(finalSearchText)
+      setSelectedContactId(contactId || 'all')
       setContacts((data as ContactRow[]) || [])
       setHasSearched(true)
       setLoadingContacts(false)
 
       if (shouldSaveCurrentView) {
-        saveCurrentView(companyId, contactId, finalSearchText)
+        saveCurrentView(companyId, finalSearchText, contactId || 'all')
       }
     },
     [companies, saveCurrentView]
@@ -377,26 +371,31 @@ export default function CustomerContactStatusPage() {
   const restoreLastView = useCallback(async () => {
     if (loading) return
     if (companies.length === 0) return
-    if (restoredRef.current) return
+    if (restoringRef.current) return
 
     const savedValue = sessionStorage.getItem(CUSTOMER_CONTACT_STATUS_STATE_KEY)
 
     if (!savedValue) return
 
     try {
+      restoringRef.current = true
+
       const savedState = JSON.parse(savedValue) as {
         selectedCompanyId?: string
-        selectedContactId?: string
         companySearchText?: string
+        selectedContactId?: string
         hasSearched?: boolean
       }
 
-      if (!savedState.hasSearched) return
+      if (!savedState.hasSearched) {
+        sessionStorage.removeItem(CUSTOMER_CONTACT_STATUS_STATE_KEY)
+        return
+      }
 
       const savedCompanyId = savedState.selectedCompanyId || 'all'
       const savedContactId = savedState.selectedContactId || 'all'
 
-      let savedCompanyText =
+      let savedSearchText =
         savedState.companySearchText || (savedCompanyId === 'all' ? '전체' : '')
 
       if (savedCompanyId !== 'all') {
@@ -409,30 +408,51 @@ export default function CustomerContactStatusPage() {
           return
         }
 
-        savedCompanyText = matchedCompany.customer_name
+        savedSearchText = matchedCompany.customer_name
       }
-
-      restoredRef.current = true
 
       await loadContactsByCondition(
         savedCompanyId,
+        savedSearchText,
         savedContactId,
-        savedCompanyText,
         false
       )
+
+      sessionStorage.removeItem(CUSTOMER_CONTACT_STATUS_STATE_KEY)
     } catch {
       sessionStorage.removeItem(CUSTOMER_CONTACT_STATUS_STATE_KEY)
+    } finally {
+      restoringRef.current = false
     }
   }, [loading, companies, loadContactsByCondition])
 
   useEffect(() => {
+    if (restoredRef.current) return
+    if (loading) return
+    if (companies.length === 0) return
+
+    restoredRef.current = true
     restoreLastView()
-  }, [restoreLastView])
+  }, [loading, companies.length, restoreLastView])
+
+  useEffect(() => {
+    const handlePageShow = () => {
+      if (loading) return
+      if (companies.length === 0) return
+
+      restoreLastView()
+    }
+
+    window.addEventListener('pageshow', handlePageShow)
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow)
+    }
+  }, [loading, companies.length, restoreLastView])
 
   function resetSearchResult() {
-    clearSavedView()
-    setContacts([])
     setHasSearched(false)
+    setContacts([])
     setMessage('')
   }
 
@@ -446,11 +466,12 @@ export default function CustomerContactStatusPage() {
   }
 
   function handleCompanyInputChange(value: string) {
-    resetSearchResult()
+    clearSavedView()
 
     setCompanySearchText(value)
     setShowCompanyList(true)
     setSelectedContactId('all')
+    resetSearchResult()
 
     const trimmedValue = value.trim()
 
@@ -473,38 +494,42 @@ export default function CustomerContactStatusPage() {
   }
 
   function handleSelectAllCompany() {
-    resetSearchResult()
+    clearSavedView()
 
     setSelectedCompanyId('all')
-    setSelectedContactId('all')
     setCompanySearchText('전체')
+    setSelectedContactId('all')
     setShowCompanyList(false)
+    resetSearchResult()
   }
 
   function handleCompanySelect(company: Company) {
-    resetSearchResult()
+    clearSavedView()
 
     setSelectedCompanyId(String(company.id))
-    setSelectedContactId('all')
     setCompanySearchText(company.customer_name)
+    setSelectedContactId('all')
     setShowCompanyList(false)
+    resetSearchResult()
   }
 
   function handleContactSelect(value: string) {
-    resetSearchResult()
+    clearSavedView()
+
     setSelectedContactId(value)
+    resetSearchResult()
   }
 
   async function handleSearch() {
     await loadContactsByCondition(
       selectedCompanyId,
-      selectedContactId,
-      selectedCompanyId === 'all' ? '전체' : companySearchText
+      selectedCompanyId === 'all' ? '전체' : companySearchText,
+      selectedContactId
     )
   }
 
   function handleRowClick(row: DisplayRow) {
-    saveCurrentView(selectedCompanyId, selectedContactId, companySearchText)
+    saveCurrentView(selectedCompanyId, companySearchText, selectedContactId)
 
     const params = new URLSearchParams()
 
@@ -529,9 +554,8 @@ export default function CustomerContactStatusPage() {
     const selectedContactName =
       selectedContactId === 'all'
         ? '전체'
-        : contactOptions.find(
-            (contact) => String(contact.id) === String(selectedContactId)
-          )?.name || ''
+        : contactOptions.find((contact) => String(contact.id) === selectedContactId)
+            ?.name || ''
 
     const bodyRows = displayRows
       .map(
@@ -654,15 +678,14 @@ export default function CustomerContactStatusPage() {
               </h1>
 
               <p className="mt-2 text-slate-600">
-                고객사와 담당자를 선택하여 담당자 현황을 조회하고 Excel로
-                다운로드할 수 있습니다.
+                고객사와 담당자를 선택하여 담당자 현황을 조회하고 Excel로 다운로드할 수 있습니다.
               </p>
             </div>
 
             <div className="rounded-2xl bg-white p-8 shadow">
               <h2 className="text-lg font-bold text-slate-900">검색 조건</h2>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_1fr_auto_auto]">
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
                     고객사
@@ -758,7 +781,7 @@ export default function CustomerContactStatusPage() {
                       return (
                         <option key={contact.id} value={String(contact.id)}>
                           {selectedCompanyId === 'all'
-                            ? `${companyName} - ${contact.name || '-'}`
+                            ? `${companyName} / ${contact.name || '-'}`
                             : contact.name || '-'}
                         </option>
                       )
@@ -859,7 +882,7 @@ export default function CustomerContactStatusPage() {
                     <tbody>
                       {displayRows.map((row, index) => (
                         <tr
-                          key={`${row.companyId}-${row.contactId}-${index}`}
+                          key={`${row.companyName}-${row.contactName}-${index}`}
                           onClick={() => handleRowClick(row)}
                           className="cursor-pointer transition hover:bg-blue-50"
                         >
@@ -896,8 +919,7 @@ export default function CustomerContactStatusPage() {
                   </table>
 
                   <p className="px-1 py-3 text-sm text-slate-500">
-                    담당자 행을 클릭하면 해당 담당자의 고객담당자 정보 등록
-                    화면으로 이동합니다.
+                    담당자 행을 클릭하면 해당 담당자의 고객담당자정보등록 화면으로 이동합니다.
                   </p>
                 </div>
               )}

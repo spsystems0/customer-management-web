@@ -50,12 +50,20 @@ export default function Sidebar({ mode }: SidebarProps) {
     window.location.href = '/'
   }
 
+  const handleDashboardMove = () => {
+    window.location.href = '/dashboard'
+  }
+
   const menuClass =
     'block w-full rounded-lg px-3 py-2.5 text-sm font-medium transition'
+
+  const buttonMenuClass =
+    'block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition'
 
   return (
     <aside className="h-screen w-[320px] overflow-y-auto border-r border-slate-200 bg-white/70 px-4 py-5">
       <ProgramUsageLogger mode={mode} />
+
       <div className="mb-4">
         <h1 className="text-[19px] font-bold text-slate-900">
           고객관리 시스템
@@ -147,18 +155,19 @@ export default function Sidebar({ mode }: SidebarProps) {
           </Link>
 
           <Link
-            href="/customer-contact-status"
+            href="/customer-contact-status?reset=1"
             className={`${menuClass} bg-teal-50 text-teal-900 hover:bg-teal-100`}
           >
             고객사 담당자 현황
           </Link>
 
-          <Link
-            href="/dashboard"
-            className={`${menuClass} bg-slate-100 text-slate-800 hover:bg-slate-200`}
+          <button
+            type="button"
+            onClick={handleDashboardMove}
+            className={`${buttonMenuClass} bg-slate-100 text-slate-800 hover:bg-slate-200`}
           >
             대시보드
-          </Link>
+          </button>
 
           <Link
             href="/companies"
@@ -205,7 +214,7 @@ export default function Sidebar({ mode }: SidebarProps) {
           <button
             type="button"
             onClick={handleLogout}
-            className="block w-full rounded-lg bg-red-600 px-3 py-2.5 text-left text-sm font-medium text-white transition hover:bg-red-700"
+            className={`${buttonMenuClass} bg-red-600 text-white hover:bg-red-700`}
           >
             로그아웃
           </button>
