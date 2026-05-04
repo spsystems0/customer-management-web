@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import Sidebar from '../../components/Sidebar'
 import { supabase } from '../../lib/supabase'
 
+type SalesUser = {
+  id: string
+  display_name: string | null
+}
+
 type UsageLog = {
   id: string
   user_id: string
@@ -17,12 +22,10 @@ type UsageLog = {
 type DisplayRow = {
   usedDate: string
   displayName: string
-  userEmail: string
   programName: string
   programPath: string
-  useCount: number
-  firstUsedAt: string
-  lastUsedAt: string
+  usedAt: string
+  rawUsedAt: string
 }
 
 function getCurrentMonth() {
@@ -96,6 +99,9 @@ function getTodayString() {
 }
 
 export default function SalesProgramUsagePage() {
+  const [salesUsers, setSalesUsers] = useState<SalesUser[]>([])
+  const [selectedUserId, setSelectedUserId] = useState('all')
+
   const [startMonth, setStartMonth] = useState(getCurrentMonth())
   const [endMonth, setEndMonth] = useState(getCurrentMonth())
 
@@ -108,6 +114,9 @@ export default function SalesProgramUsagePage() {
 
   useEffect(() => {
     const initialize = async () => {
+      setLoading(true)
+      setMessage('')
+
       const {
         data: { session },
         error,
@@ -118,72 +127,54 @@ export default function SalesProgramUsagePage() {
         return
       }
 
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, display_name')
+        .order('display_name', { ascending: true })
+
+      if (userError) {
+        setMessage(`사용자 목록 조회 실패: ${userError.message}`)
+        setSalesUsers([])
+        setLoading(false)
+        return
+      }
+
+      setSalesUsers((userData as SalesUser[]) || [])
       setLoading(false)
     }
 
     initialize()
   }, [])
 
-  const displayRows = useMemo<DisplayRow[]>(() => {
-    const map = new Map<
-      string,
-      DisplayRow & {
-        rawFirst: string
-        rawLast: string
-      }
-    >()
+  const userMap = useMemo(() => {
+    const map = new Map<string, SalesUser>()
 
-    logs.forEach((log) => {
-      const usedDate = getKoreaDate(log.used_at)
-      const displayName = log.display_name || '-'
-      const userEmail = log.user_email || '-'
-      const programName = log.program_name || '-'
-      const programPath = log.program_path || '-'
-
-      const key = `${usedDate}|${userEmail}|${programPath}`
-      const existing = map.get(key)
-
-      if (!existing) {
-        map.set(key, {
-          usedDate,
-          displayName,
-          userEmail,
-          programName,
-          programPath,
-          useCount: 1,
-          firstUsedAt: getKoreaDateTime(log.used_at),
-          lastUsedAt: getKoreaDateTime(log.used_at),
-          rawFirst: log.used_at,
-          rawLast: log.used_at,
-        })
-
-        return
-      }
-
-      existing.useCount += 1
-
-      if (
-        new Date(log.used_at).getTime() <
-        new Date(existing.rawFirst).getTime()
-      ) {
-        existing.rawFirst = log.used_at
-        existing.firstUsedAt = getKoreaDateTime(log.used_at)
-      }
-
-      if (
-        new Date(log.used_at).getTime() >
-        new Date(existing.rawLast).getTime()
-      ) {
-        existing.rawLast = log.used_at
-        existing.lastUsedAt = getKoreaDateTime(log.used_at)
-      }
+    salesUsers.forEach((user) => {
+      map.set(String(user.id), user)
     })
 
-    return Array.from(map.values())
-      .sort((a, b) => {
-        if (b.usedDate !== a.usedDate) {
-          return b.usedDate.localeCompare(a.usedDate)
+    return map
+  }, [salesUsers])
+
+  const displayRows = useMemo<DisplayRow[]>(() => {
+    return logs
+      .map((log) => {
+        const user = userMap.get(String(log.user_id))
+
+        return {
+          usedDate: getKoreaDate(log.used_at),
+          displayName: user?.display_name || log.display_name || '-',
+          programName: log.program_name || '-',
+          programPath: log.program_path || '-',
+          usedAt: getKoreaDateTime(log.used_at),
+          rawUsedAt: log.used_at,
         }
+      })
+      .sort((a, b) => {
+        const dateCompare =
+          new Date(b.rawUsedAt).getTime() - new Date(a.rawUsedAt).getTime()
+
+        if (dateCompare !== 0) return dateCompare
 
         if (a.displayName !== b.displayName) {
           return a.displayName.localeCompare(b.displayName, 'ko')
@@ -191,8 +182,13 @@ export default function SalesProgramUsagePage() {
 
         return a.programName.localeCompare(b.programName, 'ko')
       })
-      .map(({ rawFirst, rawLast, ...row }) => row)
-  }, [logs])
+  }, [logs, userMap])
+
+  function resetSearchResult() {
+    setLogs([])
+    setHasSearched(false)
+    setMessage('')
+  }
 
   async function handleSearch() {
     setMessage('')
@@ -219,14 +215,21 @@ export default function SalesProgramUsagePage() {
     const startDate = getMonthStart(startMonth)
     const endDate = getNextMonthStart(endMonth)
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('sales_program_usage_logs')
       .select(
         'id, user_id, user_email, display_name, program_path, program_name, used_at'
       )
       .gte('used_at', startDate)
       .lt('used_at', endDate)
-      .order('used_at', { ascending: false })
+
+    if (selectedUserId !== 'all') {
+      query = query.eq('user_id', selectedUserId)
+    }
+
+    const { data, error } = await query.order('used_at', {
+      ascending: false,
+    })
 
     if (error) {
       setMessage(`프로그램 사용현황 조회 실패: ${error.message}`)
@@ -245,6 +248,12 @@ export default function SalesProgramUsagePage() {
       return
     }
 
+    const selectedUserName =
+      selectedUserId === 'all'
+        ? '전체'
+        : salesUsers.find((user) => String(user.id) === selectedUserId)
+            ?.display_name || ''
+
     const bodyRows = displayRows
       .map(
         (row) => `
@@ -253,9 +262,7 @@ export default function SalesProgramUsagePage() {
             <td>${escapeHtml(row.displayName)}</td>
             <td>${escapeHtml(row.programName)}</td>
             <td>${escapeHtml(row.programPath)}</td>
-            <td>${row.useCount}</td>
-            <td>${escapeHtml(row.firstUsedAt)}</td>
-            <td>${escapeHtml(row.lastUsedAt)}</td>
+            <td>${escapeHtml(row.usedAt)}</td>
           </tr>
         `
       )
@@ -300,11 +307,15 @@ export default function SalesProgramUsagePage() {
         <body>
           <table>
             <tr>
-              <td colspan="7" class="title">영업담당자 프로그램 사용현황</td>
+              <td colspan="5" class="title">영업담당자 프로그램 사용현황</td>
+            </tr>
+            <tr>
+              <td class="label">사용자</td>
+              <td colspan="4">${escapeHtml(selectedUserName)}</td>
             </tr>
             <tr>
               <td class="label">조회기간</td>
-              <td colspan="6">${escapeHtml(startMonth)} ~ ${escapeHtml(
+              <td colspan="4">${escapeHtml(startMonth)} ~ ${escapeHtml(
                 endMonth
               )}</td>
             </tr>
@@ -314,9 +325,7 @@ export default function SalesProgramUsagePage() {
               <th class="header">사용자명</th>
               <th class="header">프로그램명</th>
               <th class="header">경로</th>
-              <th class="header">사용횟수</th>
-              <th class="header">최초사용시간</th>
-              <th class="header">마지막사용시간</th>
+              <th class="header">사용시간</th>
             </tr>
             ${bodyRows}
           </table>
@@ -367,7 +376,30 @@ export default function SalesProgramUsagePage() {
             <div className="rounded-2xl bg-white p-8 shadow">
               <h2 className="text-lg font-bold text-slate-900">검색 조건</h2>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_1fr_auto_auto]">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    사용자
+                  </label>
+
+                  <select
+                    value={selectedUserId}
+                    onChange={(e) => {
+                      setSelectedUserId(e.target.value)
+                      resetSearchResult()
+                    }}
+                    className="h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-black"
+                  >
+                    <option value="all">전체</option>
+
+                    {salesUsers.map((user) => (
+                      <option key={user.id} value={String(user.id)}>
+                        {user.display_name || '-'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
                     시작년월
@@ -378,9 +410,7 @@ export default function SalesProgramUsagePage() {
                     value={startMonth}
                     onChange={(e) => {
                       setStartMonth(e.target.value)
-                      setHasSearched(false)
-                      setLogs([])
-                      setMessage('')
+                      resetSearchResult()
                     }}
                     className="h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-black"
                   />
@@ -396,9 +426,7 @@ export default function SalesProgramUsagePage() {
                     value={endMonth}
                     onChange={(e) => {
                       setEndMonth(e.target.value)
-                      setHasSearched(false)
-                      setLogs([])
-                      setMessage('')
+                      resetSearchResult()
                     }}
                     className="h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-black"
                   />
@@ -449,7 +477,7 @@ export default function SalesProgramUsagePage() {
                 </div>
               ) : !hasSearched ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center text-slate-600">
-                  시작년월과 종료년월을 선택한 후 조회 버튼을 누르세요.
+                  사용자, 시작년월, 종료년월을 선택한 후 조회 버튼을 누르세요.
                 </div>
               ) : displayRows.length === 0 ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center text-slate-600">
@@ -459,13 +487,11 @@ export default function SalesProgramUsagePage() {
                 <div className="overflow-hidden rounded-xl border border-slate-300">
                   <table className="w-full table-fixed border-collapse text-sm">
                     <colgroup>
-                      <col style={{ width: '11%' }} />
-                      <col style={{ width: '13%' }} />
-                      <col style={{ width: '22%' }} />
+                      <col style={{ width: '14%' }} />
                       <col style={{ width: '16%' }} />
-                      <col style={{ width: '8%' }} />
-                      <col style={{ width: '15%' }} />
-                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '27%' }} />
+                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '26%' }} />
                     </colgroup>
 
                     <thead className="bg-slate-100">
@@ -483,13 +509,7 @@ export default function SalesProgramUsagePage() {
                           경로
                         </th>
                         <th className="border border-slate-300 px-3 py-3 text-center font-bold text-black">
-                          사용횟수
-                        </th>
-                        <th className="border border-slate-300 px-3 py-3 text-center font-bold text-black">
-                          최초사용
-                        </th>
-                        <th className="border border-slate-300 px-3 py-3 text-center font-bold text-black">
-                          마지막사용
+                          사용시간
                         </th>
                       </tr>
                     </thead>
@@ -497,7 +517,7 @@ export default function SalesProgramUsagePage() {
                     <tbody>
                       {displayRows.map((row, index) => (
                         <tr
-                          key={`${row.usedDate}-${row.userEmail}-${row.programPath}-${index}`}
+                          key={`${row.rawUsedAt}-${row.programPath}-${index}`}
                           className="hover:bg-blue-50"
                         >
                           <td className="border border-slate-300 px-3 py-2 text-center text-black">
@@ -516,16 +536,8 @@ export default function SalesProgramUsagePage() {
                             {row.programPath}
                           </td>
 
-                          <td className="border border-slate-300 px-3 py-2 text-center text-black">
-                            {row.useCount}
-                          </td>
-
                           <td className="break-words border border-slate-300 px-3 py-2 text-black">
-                            {row.firstUsedAt}
-                          </td>
-
-                          <td className="break-words border border-slate-300 px-3 py-2 text-black">
-                            {row.lastUsedAt}
+                            {row.usedAt}
                           </td>
                         </tr>
                       ))}
