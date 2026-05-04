@@ -45,7 +45,12 @@ function escapeHtml(value: string) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
 }
-
+function escapeHtmlWithLineBreaks(value: string) {
+  return escapeHtml(value).replace(
+    /\r\n|\n|\r/g,
+    '<br style="mso-data-placement:same-cell;" />'
+  )
+}
 function getTodayString() {
   const today = new Date()
   const yyyy = today.getFullYear()
@@ -360,7 +365,7 @@ export default function CustomerCompanyStatusPage() {
             <td>${escapeHtml(row.mainProduct)}</td>
             <td>${escapeHtml(row.address)}</td>
             <td>${escapeHtml(row.salesOwner)}</td>
-            <td>${escapeHtml(row.note)}</td>
+            <td class="multiline">${escapeHtmlWithLineBreaks(row.note)}</td>
           </tr>
         `
       )
@@ -398,6 +403,11 @@ export default function CustomerCompanyStatusPage() {
               font-weight: bold;
               text-align: center;
               background-color: #f1f5f9;
+            }
+
+            .multiline {
+              white-space: pre-wrap;
+              mso-data-placement: same-cell;
             }
 
             .text-cell {
@@ -616,7 +626,7 @@ export default function CustomerCompanyStatusPage() {
                             {row.salesOwner}
                           </td>
 
-                          <td className="break-words border border-slate-300 px-3 py-2 text-black">
+                          <td className="whitespace-pre-wrap break-words border border-slate-300 px-3 py-2 text-black">
                             {row.note}
                           </td>
                         </tr>
