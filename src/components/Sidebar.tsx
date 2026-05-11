@@ -69,7 +69,7 @@ const salesMenuItems: MenuItem[] = [
   },
   {
     label: '방문일지 입력',
-    href: '/visit-logs',
+    href: '/visit-history',
   },
   {
     label: '고객분류코드 관리',
