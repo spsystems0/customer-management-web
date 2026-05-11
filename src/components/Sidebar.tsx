@@ -81,7 +81,7 @@ const salesMenuItems: MenuItem[] = [
   },
   {
     label: '영업담당자 프로그램 사용현황',
-    href: '/program-usage-status',
+    href: '/sales-program-usage',
   },
 ]
 
