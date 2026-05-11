@@ -1,9 +1,8 @@
 'use client'
 
-import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
-import ProgramUsageLogger from './ProgramUsageLogger'
 
 type SidebarMode = 'guest' | 'sales'
 
@@ -11,236 +10,281 @@ type SidebarProps = {
   mode?: SidebarMode
 }
 
-type LoginUserInfo = {
-  email: string
-  displayName: string
+type MenuItem = {
+  label: string
+  href: string
 }
 
-export default function Sidebar({ mode }: SidebarProps) {
-  const [resolvedMode, setResolvedMode] = useState<SidebarMode>('guest')
-  const [userInfo, setUserInfo] = useState<LoginUserInfo | null>(null)
-  const [checkingSession, setCheckingSession] = useState(true)
+const guestMenuItems: MenuItem[] = [
+  {
+    label: '고객사관리카드 조회',
+    href: '/company-cards',
+  },
+  {
+    label: '고객관리카드 조회',
+    href: '/customer-cards',
+  },
+  {
+    label: '방문이력 조회',
+    href: '/visit-history',
+  },
+  {
+    label: '영업담당자 로그인',
+    href: '/',
+  },
+]
+
+const salesMenuItems: MenuItem[] = [
+  {
+    label: '영업담당자 대시보드',
+    href: '/dashboard',
+  },
+  {
+    label: '고객사관리카드 조회',
+    href: '/company-cards',
+  },
+  {
+    label: '고객관리카드 조회',
+    href: '/customer-cards',
+  },
+  {
+    label: '방문이력 조회',
+    href: '/visit-history',
+  },
+  {
+    label: '고객사 현황',
+    href: '/customer-company-status',
+  },
+  {
+    label: '고객사 담당자 현황',
+    href: '/customer-contact-status',
+  },
+  {
+    label: '고객사 등록',
+    href: '/companies',
+  },
+  {
+    label: '고객담당자 등록',
+    href: '/contacts',
+  },
+  {
+    label: '방문일지 입력',
+    href: '/visit-logs',
+  },
+  {
+    label: '고객분류코드 관리',
+    href: '/customer-category-codes',
+  },
+  {
+    label: '담당자 출력순서 관리',
+    href: '/contact-print-order',
+  },
+  {
+    label: '영업담당자 프로그램 사용현황',
+    href: '/program-usage-status',
+  },
+]
+
+export default function Sidebar({ mode = 'guest' }: SidebarProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const [sessionChecked, setSessionChecked] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loginName, setLoginName] = useState('')
+  const [loginEmail, setLoginEmail] = useState('')
 
   useEffect(() => {
-    const loadUserInfo = async () => {
-      setCheckingSession(true)
-
+    const loadSession = async () => {
       const {
-        data: { user },
-      } = await supabase.auth.getUser()
+        data: { session },
+      } = await supabase.auth.getSession()
 
-      if (user) {
-        setResolvedMode('sales')
-
-        setUserInfo({
-          email: user.email || '',
-          displayName:
-            (user.user_metadata?.display_name as string) ||
-            (user.user_metadata?.name as string) ||
-            '',
-        })
-
-        setCheckingSession(false)
+      if (!session) {
+        setIsLoggedIn(false)
+        setLoginName('')
+        setLoginEmail('')
+        setSessionChecked(true)
         return
       }
 
-      setResolvedMode('guest')
-      setUserInfo(null)
-      setCheckingSession(false)
+      const email = session.user.email || ''
+      const userMetadata = session.user.user_metadata || {}
+
+      const nameFromMetadata =
+        userMetadata.name ||
+        userMetadata.full_name ||
+        userMetadata.display_name ||
+        userMetadata.user_name ||
+        ''
+
+      setIsLoggedIn(true)
+      setLoginEmail(email)
+      setLoginName(nameFromMetadata || getDefaultNameFromEmail(email))
+      setSessionChecked(true)
     }
 
-    loadUserInfo()
-  }, [mode])
+    loadSession()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setIsLoggedIn(false)
+        setLoginName('')
+        setLoginEmail('')
+        setSessionChecked(true)
+        return
+      }
+
+      const email = session.user.email || ''
+      const userMetadata = session.user.user_metadata || {}
+
+      const nameFromMetadata =
+        userMetadata.name ||
+        userMetadata.full_name ||
+        userMetadata.display_name ||
+        userMetadata.user_name ||
+        ''
+
+      setIsLoggedIn(true)
+      setLoginEmail(email)
+      setLoginName(nameFromMetadata || getDefaultNameFromEmail(email))
+      setSessionChecked(true)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const effectiveMode: SidebarMode = useMemo(() => {
+    if (!sessionChecked) return mode
+    return isLoggedIn ? 'sales' : 'guest'
+  }, [sessionChecked, isLoggedIn, mode])
+
+  const menuItems = effectiveMode === 'sales' ? salesMenuItems : guestMenuItems
+
+  const handleMove = (href: string) => {
+    router.push(href)
+  }
+
+  const handleChangePassword = () => {
+    router.push('/change-password')
+  }
 
   const handleLogout = async () => {
+    const confirmed = window.confirm('로그아웃 하시겠습니까?')
+
+    if (!confirmed) return
+
     await supabase.auth.signOut()
-    window.location.href = '/'
-  }
 
-  const handleDashboardMove = () => {
-    window.location.href = '/dashboard'
-  }
+    setIsLoggedIn(false)
+    setLoginName('')
+    setLoginEmail('')
 
-  const menuClass =
-    'block w-full rounded-lg px-3 py-2.5 text-sm font-medium transition'
-
-  const buttonMenuClass =
-    'block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition'
-
-  if (checkingSession) {
-    return (
-      <aside className="h-screen w-[320px] overflow-y-auto border-r border-slate-200 bg-white/70 px-4 py-5">
-        <div className="mb-4">
-          <h1 className="text-[19px] font-bold text-slate-900">
-            고객관리 시스템
-          </h1>
-
-          <p className="mt-1 text-xs text-slate-600">로그인 확인 중...</p>
-        </div>
-      </aside>
-    )
+    router.push('/')
+    router.refresh()
   }
 
   return (
-    <aside className="h-screen w-[320px] overflow-y-auto border-r border-slate-200 bg-white/70 px-4 py-5">
-      <ProgramUsageLogger mode={resolvedMode} />
+    <aside className="min-h-screen w-72 shrink-0 border-r border-slate-200 bg-slate-50 px-4 py-6 print:hidden">
+      <div className="sticky top-0">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-slate-900">
+            고객관리 시스템
+          </h1>
 
-      <div className="mb-4">
-        <h1 className="text-[19px] font-bold text-slate-900">
-          고객관리 시스템
-        </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {effectiveMode === 'sales'
+              ? '영업담당자 업무 메뉴'
+              : '고객관리 조회 메뉴'}
+          </p>
+        </div>
 
-        <p className="mt-1 text-xs text-slate-600">
-          {resolvedMode === 'sales' ? '영업담당자 업무 메뉴' : '일반조회 메뉴'}
-        </p>
-
-        {resolvedMode === 'sales' && (
-          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <div className="text-xs font-semibold text-slate-500">
+        {effectiveMode === 'sales' && (
+          <div className="mb-5 rounded-xl border border-slate-300 bg-slate-100 p-4 text-sm text-slate-900">
+            <p className="mb-3 font-semibold text-slate-700">
               현재 로그인 정보
+            </p>
+
+            <div className="flex items-center gap-2">
+              <span className="font-bold">이름:</span>
+
+              <span className="font-bold">
+                {loginName || '관리자'}
+              </span>
+
+              <button
+                type="button"
+                onClick={handleChangePassword}
+                className="ml-auto rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800"
+              >
+                비밀번호 변경
+              </button>
             </div>
 
-            <div className="mt-1.5 text-xs text-slate-900">
-              <div>
-                <span className="font-semibold">이름:</span>{' '}
-                {userInfo?.displayName || '-'}
-              </div>
-
-              <div className="mt-1 break-all">
-                <span className="font-semibold">이메일:</span>{' '}
-                {userInfo?.email || '-'}
-              </div>
-            </div>
+            <p className="mt-2 break-all">
+              <span className="font-bold">이메일:</span>{' '}
+              {loginEmail || '-'}
+            </p>
           </div>
         )}
+
+        <nav className="space-y-2">
+          {menuItems.map((item) => {
+            const active = isActivePath(pathname, item.href)
+
+            return (
+              <button
+                key={item.href}
+                type="button"
+                onClick={() => handleMove(item.href)}
+                className={`block w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
+                  active
+                    ? 'bg-blue-700 text-white shadow'
+                    : 'bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                {item.label}
+              </button>
+            )
+          })}
+
+          {effectiveMode === 'sales' && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="block w-full rounded-xl bg-red-600 px-4 py-3 text-left text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              로그아웃
+            </button>
+          )}
+        </nav>
       </div>
-
-      {resolvedMode === 'guest' ? (
-        <nav className="space-y-2">
-          <Link
-            href="/company-cards"
-            className={`${menuClass} bg-blue-50 text-blue-900 hover:bg-blue-100`}
-          >
-            고객사관리카드 조회
-          </Link>
-
-          <Link
-            href="/customer-cards"
-            className={`${menuClass} bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
-          >
-            고객관리카드 조회
-          </Link>
-
-          <Link
-            href="/visit-history"
-            className={`${menuClass} bg-orange-50 text-orange-900 hover:bg-orange-100`}
-          >
-            방문일지 조회
-          </Link>
-
-          <Link
-            href="/login"
-            className={`${menuClass} bg-slate-100 text-slate-800 hover:bg-slate-200`}
-          >
-            영업담당자 로그인
-          </Link>
-        </nav>
-      ) : (
-        <nav className="space-y-2">
-          <Link
-            href="/company-cards"
-            className={`${menuClass} bg-blue-50 text-blue-900 hover:bg-blue-100`}
-          >
-            고객사관리카드 조회
-          </Link>
-
-          <Link
-            href="/customer-cards"
-            className={`${menuClass} bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
-          >
-            고객관리카드 조회
-          </Link>
-
-          <Link
-            href="/visit-history"
-            className={`${menuClass} bg-orange-50 text-orange-900 hover:bg-orange-100`}
-          >
-            방문일지 조회
-          </Link>
-
-          <Link
-            href="/customer-company-status?reset=1"
-            className={`${menuClass} bg-indigo-50 text-indigo-900 hover:bg-indigo-100`}
-          >
-            고객사 현황
-          </Link>
-
-          <Link
-            href="/customer-contact-status?reset=1"
-            className={`${menuClass} bg-teal-50 text-teal-900 hover:bg-teal-100`}
-          >
-            고객사 담당자 현황
-          </Link>
-
-          <button
-            type="button"
-            onClick={handleDashboardMove}
-            className={`${buttonMenuClass} bg-slate-100 text-slate-800 hover:bg-slate-200`}
-          >
-            대시보드
-          </button>
-
-          <Link
-            href="/companies"
-            className={`${menuClass} bg-blue-50 text-blue-900 hover:bg-blue-100`}
-          >
-            고객사 정보 등록
-          </Link>
-
-          <Link
-            href="/contacts"
-            className={`${menuClass} bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
-          >
-            고객담당자 정보 등록
-          </Link>
-
-          <Link
-            href="/visits"
-            className={`${menuClass} bg-amber-50 text-amber-900 hover:bg-amber-100`}
-          >
-            방문일지 작성
-          </Link>
-
-          <Link
-            href="/customer-category-codes"
-            className={`${menuClass} bg-violet-50 text-violet-900 hover:bg-violet-100`}
-          >
-            고객분류코드 관리
-          </Link>
-
-          <Link
-            href="/contact-print-order"
-            className={`${menuClass} bg-cyan-50 text-cyan-900 hover:bg-cyan-100`}
-          >
-            담당자 출력순서 관리
-          </Link>
-
-          <Link
-            href="/sales-program-usage"
-            className={`${menuClass} bg-amber-50 text-amber-900 hover:bg-amber-100`}
-          >
-            프로그램 사용현황
-          </Link>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className={`${buttonMenuClass} bg-red-600 text-white hover:bg-red-700`}
-          >
-            로그아웃
-          </button>
-        </nav>
-      )}
     </aside>
   )
+}
+
+function isActivePath(pathname: string | null, href: string) {
+  if (!pathname) return false
+
+  if (href === '/') {
+    return pathname === '/'
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+function getDefaultNameFromEmail(email: string) {
+  if (!email) return '관리자'
+
+  const id = email.split('@')[0]
+
+  if (!id) return '관리자'
+
+  if (id.toLowerCase() === 'admin') return '관리자'
+
+  return id
 }
