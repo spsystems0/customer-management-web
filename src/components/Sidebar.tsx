@@ -30,7 +30,7 @@ const guestMenuItems: MenuItem[] = [
   },
   {
     label: '영업담당자 로그인',
-    href: '/',
+    href: '/login',
   },
 ]
 
