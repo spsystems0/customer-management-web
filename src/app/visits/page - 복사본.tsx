@@ -5,12 +5,6 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
 
-const EXCEPTION_MANAGER_EMAILS = [
-  'admin@spsystems.co.kr',
-  'seongbong@spsystems.co.kr',
-  'jiyeon2@spsystems.co.kr',
-]
-
 type Company = {
   id: number
   customer_name: string
@@ -24,18 +18,6 @@ type Contact = {
 type VisitOption = {
   id: number
   label: string
-}
-
-type VisitLogRow = {
-  id: number
-  company_id: number
-  contact_id: number | null
-  visitor_name: string | null
-  visit_date: string | null
-  purpose: string | null
-  discussion: string | null
-  follow_up_action: string | null
-  created_by_email: string | null
 }
 
 export default function VisitsPage() {
@@ -63,9 +45,6 @@ function VisitsPageContent() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
 
-  const [currentUserEmail, setCurrentUserEmail] = useState('')
-  const [visitCreatedByEmail, setVisitCreatedByEmail] = useState('')
-
   const [selectedLoadCompanyId, setSelectedLoadCompanyId] = useState('')
   const [selectedVisitId, setSelectedVisitId] = useState('')
 
@@ -87,18 +66,6 @@ function VisitsPageContent() {
 
   const searchParams = useSearchParams()
 
-  const normalizedCurrentUserEmail = currentUserEmail.trim().toLowerCase()
-
-  const isExceptionManager = EXCEPTION_MANAGER_EMAILS.includes(
-    normalizedCurrentUserEmail
-  )
-
-  const canEditLoadedVisit =
-    !editingId ||
-    isExceptionManager ||
-    (!!visitCreatedByEmail &&
-      visitCreatedByEmail.trim().toLowerCase() === normalizedCurrentUserEmail)
-
   useEffect(() => {
     const initialize = async () => {
       const {
@@ -110,9 +77,6 @@ function VisitsPageContent() {
         window.location.href = '/login'
         return
       }
-
-      const loginEmail = session.user.email || ''
-      setCurrentUserEmail(loginEmail)
 
       const { data, error } = await supabase
         .from('companies')
@@ -183,10 +147,7 @@ function VisitsPageContent() {
   const getCompanyNameById = (companyId: string | number | null | undefined) => {
     if (!companyId) return ''
 
-    const company = companies.find(
-      (item) => String(item.id) === String(companyId)
-    )
-
+    const company = companies.find((item) => String(item.id) === String(companyId))
     return company?.customer_name || ''
   }
 
@@ -327,8 +288,7 @@ function VisitsPageContent() {
         visit_date,
         purpose,
         discussion,
-        follow_up_action,
-        created_by_email
+        follow_up_action
       `)
       .eq('id', Number(visitId))
       .single()
@@ -338,26 +298,23 @@ function VisitsPageContent() {
       return
     }
 
-    const visitLog = data as VisitLogRow
-    const companyName = getCompanyNameById(visitLog.company_id)
+    const companyName = getCompanyNameById(data.company_id)
 
-    setEditingId(visitLog.id)
-    setVisitCreatedByEmail(visitLog.created_by_email || '')
-
-    setSelectedLoadCompanyId(String(visitLog.company_id))
+    setEditingId(data.id)
+    setSelectedLoadCompanyId(String(data.company_id))
     setLoadCompanySearchText(companyName)
-    setSelectedCompanyId(String(visitLog.company_id))
+    setSelectedCompanyId(String(data.company_id))
     setFormCompanySearchText(companyName)
-    setVisitorName(visitLog.visitor_name || '')
-    setVisitDate(visitLog.visit_date || '')
-    setPurpose(visitLog.purpose || '')
-    setDiscussion(visitLog.discussion || '')
-    setFollowUpAction(visitLog.follow_up_action || '')
+    setVisitorName(data.visitor_name || '')
+    setVisitDate(data.visit_date || '')
+    setPurpose(data.purpose || '')
+    setDiscussion(data.discussion || '')
+    setFollowUpAction(data.follow_up_action || '')
 
     const { data: contactData, error: contactError } = await supabase
       .from('contacts')
       .select('id, name')
-      .eq('company_id', Number(visitLog.company_id))
+      .eq('company_id', Number(data.company_id))
       .order('print_order', { ascending: true })
       .order('name', { ascending: true })
 
@@ -367,25 +324,9 @@ function VisitsPageContent() {
     }
 
     setContacts(contactData || [])
-    setSelectedContactId(
-      visitLog.contact_id ? String(visitLog.contact_id) : ''
-    )
-    setSelectedVisitId(String(visitLog.id))
-
-    const ownerEmail = visitLog.created_by_email || ''
-    const canEdit =
-      isExceptionManager ||
-      (!!ownerEmail &&
-        ownerEmail.trim().toLowerCase() ===
-          currentUserEmail.trim().toLowerCase())
-
-    if (canEdit) {
-      setMessage('방문일지를 불러왔습니다.')
-    } else {
-      setMessage(
-        '방문일지를 불러왔습니다.\n단, 본인이 작성한 방문일지가 아니므로 수정 또는 삭제할 수 없습니다.'
-      )
-    }
+    setSelectedContactId(data.contact_id ? String(data.contact_id) : '')
+    setSelectedVisitId(String(data.id))
+    setMessage('방문일지를 불러왔습니다.')
   }
 
   useEffect(() => {
@@ -434,11 +375,10 @@ function VisitsPageContent() {
     if (companies.length > 0) {
       applyParams()
     }
-  }, [searchParams, companies, currentUserEmail, isExceptionManager])
+  }, [searchParams, companies])
 
   const resetForm = () => {
     setEditingId(null)
-    setVisitCreatedByEmail('')
     setSelectedVisitId('')
 
     setSelectedCompanyId('')
@@ -503,11 +443,6 @@ function VisitsPageContent() {
       return
     }
 
-    if (editingId && !canEditLoadedVisit) {
-      setMessage('본인이 작성한 방문일지만 수정할 수 있습니다.')
-      return
-    }
-
     const payload = {
       company_id: Number(selectedCompanyId),
       contact_id: selectedContactId ? Number(selectedContactId) : null,
@@ -519,24 +454,13 @@ function VisitsPageContent() {
     }
 
     if (editingId) {
-      let updateQuery = supabase
+      const { error } = await supabase
         .from('visit_logs')
         .update(payload)
         .eq('id', editingId)
 
-      if (!isAdmin) {
-        updateQuery = updateQuery.eq('created_by_email', currentUserEmail)
-      }
-
-      const { data, error } = await updateQuery.select('id').maybeSingle()
-
       if (error) {
         setMessage(`수정 실패: ${error.message}`)
-        return
-      }
-
-      if (!data) {
-        setMessage('수정 권한이 없습니다. 본인이 작성한 방문일지만 수정할 수 있습니다.')
         return
       }
 
@@ -545,12 +469,7 @@ function VisitsPageContent() {
       return
     }
 
-    const insertPayload = {
-      ...payload,
-      created_by_email: currentUserEmail,
-    }
-
-    const { error } = await supabase.from('visit_logs').insert([insertPayload])
+    const { error } = await supabase.from('visit_logs').insert([payload])
 
     if (error) {
       setMessage(`저장 실패: ${error.message}`)
@@ -571,32 +490,16 @@ function VisitsPageContent() {
       return
     }
 
-    if (!canEditLoadedVisit) {
-      setMessage('본인이 작성한 방문일지만 삭제할 수 있습니다.')
-      return
-    }
-
     const confirmed = window.confirm('선택한 방문일지를 삭제하시겠습니까?')
     if (!confirmed) return
 
-    let deleteQuery = supabase
+    const { error } = await supabase
       .from('visit_logs')
       .delete()
       .eq('id', editingId)
 
-    if (!isExceptionManager) {
-      deleteQuery = deleteQuery.eq('created_by_email', currentUserEmail)
-    }
-
-    const { data, error } = await deleteQuery.select('id').maybeSingle()
-
     if (error) {
       setMessage(`삭제 실패: ${error.message}`)
-      return
-    }
-
-    if (!data) {
-      setMessage('삭제 권한이 없습니다. 본인이 작성한 방문일지만 삭제할 수 있습니다.')
       return
     }
 
@@ -637,16 +540,6 @@ function VisitsPageContent() {
               고객사와 방문일지를 선택해 기존 정보를 불러오거나 신규 등록할 수 있습니다.
             </p>
 
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              <span className="font-bold">현재 로그인 계정:</span>{' '}
-              {currentUserEmail || '-'}
-              {isExceptionManager && (
-                <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700">
-                  예외 관리자
-                </span>
-              )}
-            </div>
-
             <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <h2 className="text-lg font-semibold text-slate-800">
                 방문일지 불러오기
@@ -657,9 +550,7 @@ function VisitsPageContent() {
                   <input
                     type="text"
                     value={loadCompanySearchText}
-                    onChange={(e) =>
-                      handleLoadCompanyInputChange(e.target.value)
-                    }
+                    onChange={(e) => handleLoadCompanyInputChange(e.target.value)}
                     onFocus={() => setShowLoadCompanyList(true)}
                     placeholder="고객사를 선택하세요"
                     className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
@@ -694,7 +585,6 @@ function VisitsPageContent() {
                   disabled={!selectedLoadCompanyId}
                 >
                   <option value="">방문일지를 선택하세요</option>
-
                   {visitOptions.map((visit) => (
                     <option key={visit.id} value={visit.id}>
                       {visit.label}
@@ -720,25 +610,16 @@ function VisitsPageContent() {
               </div>
             </div>
 
-            {editingId && !canEditLoadedVisit && (
-              <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                이 방문일지는 다른 사용자가 작성한 자료입니다. 조회는 가능하지만 수정 또는 삭제할 수 없습니다.
-              </div>
-            )}
-
             <form onSubmit={handleSubmit} className="mt-8 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div ref={formCompanyListRef} className="relative">
                   <input
                     type="text"
                     value={formCompanySearchText}
-                    onChange={(e) =>
-                      handleFormCompanyInputChange(e.target.value)
-                    }
+                    onChange={(e) => handleFormCompanyInputChange(e.target.value)}
                     onFocus={() => setShowFormCompanyList(true)}
                     placeholder="고객사를 선택하세요"
-                    disabled={editingId ? !canEditLoadedVisit : false}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 disabled:bg-slate-100 disabled:text-slate-500"
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
                   />
 
                   {showFormCompanyList && (
@@ -766,11 +647,10 @@ function VisitsPageContent() {
                 <select
                   value={selectedContactId}
                   onChange={(e) => setSelectedContactId(e.target.value)}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black disabled:bg-slate-100 disabled:text-slate-500"
-                  disabled={!selectedCompanyId || (editingId ? !canEditLoadedVisit : false)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
+                  disabled={!selectedCompanyId}
                 >
                   <option value="">담당자를 선택하세요</option>
-
                   {contacts.map((contact) => (
                     <option key={contact.id} value={contact.id}>
                       {contact.name}
@@ -782,16 +662,14 @@ function VisitsPageContent() {
                   value={visitorName}
                   onChange={(e) => setVisitorName(e.target.value)}
                   placeholder="방문자(영업담당자)"
-                  disabled={editingId ? !canEditLoadedVisit : false}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 disabled:bg-slate-100 disabled:text-slate-500"
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
                 />
 
                 <input
                   type="date"
                   value={visitDate}
                   onChange={(e) => setVisitDate(e.target.value)}
-                  disabled={editingId ? !canEditLoadedVisit : false}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black disabled:bg-slate-100 disabled:text-slate-500"
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
                 />
               </div>
 
@@ -799,31 +677,27 @@ function VisitsPageContent() {
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
                 placeholder="방문목적"
-                disabled={editingId ? !canEditLoadedVisit : false}
-                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 disabled:bg-slate-100 disabled:text-slate-500"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
               />
 
               <textarea
                 value={discussion}
                 onChange={(e) => setDiscussion(e.target.value)}
                 placeholder="상담내용"
-                disabled={editingId ? !canEditLoadedVisit : false}
-                className="min-h-[140px] w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 disabled:bg-slate-100 disabled:text-slate-500"
+                className="min-h-[140px] w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
               />
 
               <textarea
                 value={followUpAction}
                 onChange={(e) => setFollowUpAction(e.target.value)}
                 placeholder="후속조치"
-                disabled={editingId ? !canEditLoadedVisit : false}
-                className="min-h-[140px] w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500 disabled:bg-slate-100 disabled:text-slate-500"
+                className="min-h-[140px] w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder:text-gray-500"
               />
 
               <div className="flex flex-wrap gap-3 pt-2">
                 <button
                   type="submit"
-                  disabled={editingId ? !canEditLoadedVisit : false}
-                  className="rounded-xl bg-blue-700 px-6 py-3 font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="rounded-xl bg-blue-700 px-6 py-3 font-medium text-white hover:bg-blue-800"
                 >
                   {editingId ? '수정 저장' : '신규 저장'}
                 </button>
@@ -831,8 +705,7 @@ function VisitsPageContent() {
                 <button
                   type="button"
                   onClick={handleDelete}
-                  disabled={editingId ? !canEditLoadedVisit : false}
-                  className="rounded-xl bg-red-600 px-6 py-3 font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="rounded-xl bg-red-600 px-6 py-3 font-medium text-white hover:bg-red-700"
                 >
                   삭제
                 </button>
