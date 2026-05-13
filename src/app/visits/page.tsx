@@ -524,9 +524,9 @@ function VisitsPageContent() {
         .update(payload)
         .eq('id', editingId)
 
-      if (!isAdmin) {
-        updateQuery = updateQuery.eq('created_by_email', currentUserEmail)
-      }
+    if (!isExceptionManager) {
+      updateQuery = updateQuery.eq('created_by_email', currentUserEmail)
+    }
 
       const { data, error } = await updateQuery.select('id').maybeSingle()
 
