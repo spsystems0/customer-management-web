@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { MouseEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
@@ -12,12 +11,6 @@ type DashboardMenuItem = {
   href: string
   colorClass: string
   titleClass: string
-}
-
-type LoginUser = {
-  id: string
-  email: string
-  displayName: string
 }
 
 const menuGroups: DashboardMenuItem[][] = [
@@ -74,13 +67,9 @@ const menuGroups: DashboardMenuItem[][] = [
 export default function DashboardPage() {
   const router = useRouter()
 
-  const [loginUser, setLoginUser] = useState<LoginUser>({
-    id: '',
-    email: '',
-    displayName: '',
-  })
-
+  const [userEmail, setUserEmail] = useState('')
   const [loading, setLoading] = useState(true)
+  const [movingPath, setMovingPath] = useState('')
 
   useEffect(() => {
     const loadSession = async () => {
@@ -94,22 +83,7 @@ export default function DashboardPage() {
         return
       }
 
-      const email = session.user.email ?? ''
-      const userMetadata = session.user.user_metadata || {}
-
-      const displayName =
-        userMetadata.name ||
-        userMetadata.full_name ||
-        userMetadata.display_name ||
-        userMetadata.user_name ||
-        getDefaultNameFromEmail(email)
-
-      setLoginUser({
-        id: session.user.id,
-        email,
-        displayName,
-      })
-
+      setUserEmail(session.user.email ?? '')
       setLoading(false)
     }
 
@@ -117,29 +91,55 @@ export default function DashboardPage() {
   }, [])
 
   const saveProgramUsageLog = async (item: DashboardMenuItem) => {
-    if (!loginUser.id || !loginUser.email) return
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
 
-    const { error } = await supabase
-      .from('sales_program_usage_logs')
-      .insert([
-        {
-          user_id: loginUser.id,
-          user_email: loginUser.email,
-          display_name: loginUser.displayName,
-          program_path: item.href,
-          program_name: item.title,
-          used_at: new Date().toISOString(),
-        },
-      ])
+    if (sessionError || !session) {
+      console.error('세션 확인 실패:', sessionError?.message)
+      return
+    }
+
+    const email = session.user.email || ''
+    const userMetadata = session.user.user_metadata || {}
+
+    const displayName =
+      userMetadata.name ||
+      userMetadata.full_name ||
+      userMetadata.display_name ||
+      userMetadata.user_name ||
+      getDefaultNameFromEmail(email)
+
+    const { error } = await supabase.from('sales_program_usage_logs').insert([
+      {
+        user_id: session.user.id,
+        user_email: email,
+        display_name: displayName,
+        program_path: item.href,
+        program_name: item.title,
+        used_at: new Date().toISOString(),
+      },
+    ])
 
     if (error) {
-      console.error('영업담당자 프로그램 사용기록 저장 실패:', error.message)
+      console.error('대시보드 프로그램 사용기록 저장 실패:', error.message)
+      console.error('저장 실패 상세:', error)
     }
   }
 
   const handleDashboardMenuClick = async (item: DashboardMenuItem) => {
-    await saveProgramUsageLog(item)
-    router.push(item.href)
+    if (movingPath) return
+
+    setMovingPath(item.href)
+
+    try {
+      await saveProgramUsageLog(item)
+    } catch (error) {
+      console.error('대시보드 사용기록 저장 중 오류:', error)
+    } finally {
+      router.push(item.href)
+    }
   }
 
   if (loading) {
@@ -164,7 +164,7 @@ export default function DashboardPage() {
             <p className="mt-2 text-slate-600">로그인에 성공했습니다.</p>
 
             <p className="mt-1 text-sm text-slate-500">
-              로그인 사용자: {loginUser.email || '이메일 정보 없음'}
+              로그인 사용자: {userEmail || '이메일 정보 없음'}
             </p>
           </div>
 
@@ -175,6 +175,7 @@ export default function DashboardPage() {
                   <DashboardCard
                     key={item.href}
                     item={item}
+                    moving={movingPath === item.href}
                     onMove={handleDashboardMenuClick}
                   />
                 ))}
@@ -189,21 +190,19 @@ export default function DashboardPage() {
 
 function DashboardCard({
   item,
+  moving,
   onMove,
 }: {
   item: DashboardMenuItem
+  moving: boolean
   onMove: (item: DashboardMenuItem) => Promise<void>
 }) {
-  const handleClick = async (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault()
-    await onMove(item)
-  }
-
   return (
-    <Link
-      href={item.href}
-      onClick={handleClick}
-      className={`block rounded-2xl border p-6 shadow-sm transition ${item.colorClass}`}
+    <button
+      type="button"
+      onClick={() => onMove(item)}
+      disabled={moving}
+      className={`block w-full rounded-2xl border p-6 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${item.colorClass}`}
     >
       <h2 className={`text-lg font-semibold ${item.titleClass}`}>
         {item.title}
@@ -212,7 +211,13 @@ function DashboardCard({
       <p className="mt-2 text-sm leading-6 text-slate-700">
         {item.description}
       </p>
-    </Link>
+
+      {moving && (
+        <p className="mt-3 text-xs font-semibold text-slate-500">
+          이동 중...
+        </p>
+      )}
+    </button>
   )
 }
 
