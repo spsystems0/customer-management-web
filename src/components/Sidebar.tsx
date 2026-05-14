@@ -165,7 +165,45 @@ export default function Sidebar({ mode = 'guest' }: SidebarProps) {
 
   const menuItems = effectiveMode === 'sales' ? salesMenuItems : guestMenuItems
 
-  const handleMove = (href: string) => {
+  const handleMove = async (href: string, label: string) => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (session?.user?.email && effectiveMode === 'sales') {
+        const email = session.user.email
+        const userMetadata = session.user.user_metadata || {}
+
+        const displayName =
+          userMetadata.name ||
+          userMetadata.full_name ||
+          userMetadata.display_name ||
+          userMetadata.user_name ||
+          loginName ||
+          email.split('@')[0]
+
+        const { error } = await supabase
+          .from('sales_program_usage_logs')
+          .insert([
+            {
+              user_id: session.user.id,
+              user_email: email,
+              display_name: displayName,
+              program_path: href,
+              program_name: label,
+              used_at: new Date().toISOString(),
+            },
+          ])
+
+        if (error) {
+          console.error('영업담당자 프로그램 사용기록 저장 실패:', error.message)
+        }
+      }
+    } catch (error) {
+      console.error('영업담당자 프로그램 사용기록 저장 중 오류:', error)
+    }
+
     router.push(href)
   }
 
@@ -240,7 +278,7 @@ export default function Sidebar({ mode = 'guest' }: SidebarProps) {
               <button
                 key={item.href}
                 type="button"
-                onClick={() => handleMove(item.href)}
+                onClick={() => handleMove(item.href, item.label)}
                 className={`block w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
                   active
                     ? 'bg-blue-700 text-white shadow'
