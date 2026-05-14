@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MouseEvent, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Sidebar from '../../components/Sidebar'
 
@@ -14,12 +13,6 @@ type DashboardMenuItem = {
   titleClass: string
 }
 
-type LoginUser = {
-  id: string
-  email: string
-  displayName: string
-}
-
 const menuGroups: DashboardMenuItem[][] = [
   [
     {
@@ -29,6 +22,7 @@ const menuGroups: DashboardMenuItem[][] = [
       colorClass: 'border-blue-200 bg-blue-50 hover:bg-blue-100',
       titleClass: 'text-blue-900',
     },
+
     {
       title: '고객사 현황',
       description: '고객사 현황을 조회하고 Excel로 다운로드합니다.',
@@ -36,6 +30,7 @@ const menuGroups: DashboardMenuItem[][] = [
       colorClass: 'border-orange-200 bg-orange-50 hover:bg-orange-100',
       titleClass: 'text-orange-900',
     },
+
   ],
   [
     {
@@ -68,18 +63,11 @@ const menuGroups: DashboardMenuItem[][] = [
       colorClass: 'border-cyan-200 bg-cyan-50 hover:bg-cyan-100',
       titleClass: 'text-cyan-900',
     },
-  ],
+    ],
 ]
 
 export default function DashboardPage() {
-  const router = useRouter()
-
-  const [loginUser, setLoginUser] = useState<LoginUser>({
-    id: '',
-    email: '',
-    displayName: '',
-  })
-
+  const [userEmail, setUserEmail] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -94,53 +82,12 @@ export default function DashboardPage() {
         return
       }
 
-      const email = session.user.email ?? ''
-      const userMetadata = session.user.user_metadata || {}
-
-      const displayName =
-        userMetadata.name ||
-        userMetadata.full_name ||
-        userMetadata.display_name ||
-        userMetadata.user_name ||
-        getDefaultNameFromEmail(email)
-
-      setLoginUser({
-        id: session.user.id,
-        email,
-        displayName,
-      })
-
+      setUserEmail(session.user.email ?? '')
       setLoading(false)
     }
 
     loadSession()
   }, [])
-
-  const saveProgramUsageLog = async (item: DashboardMenuItem) => {
-    if (!loginUser.id || !loginUser.email) return
-
-    const { error } = await supabase
-      .from('sales_program_usage_logs')
-      .insert([
-        {
-          user_id: loginUser.id,
-          user_email: loginUser.email,
-          display_name: loginUser.displayName,
-          program_path: item.href,
-          program_name: item.title,
-          used_at: new Date().toISOString(),
-        },
-      ])
-
-    if (error) {
-      console.error('영업담당자 프로그램 사용기록 저장 실패:', error.message)
-    }
-  }
-
-  const handleDashboardMenuClick = async (item: DashboardMenuItem) => {
-    await saveProgramUsageLog(item)
-    router.push(item.href)
-  }
 
   if (loading) {
     return (
@@ -164,7 +111,7 @@ export default function DashboardPage() {
             <p className="mt-2 text-slate-600">로그인에 성공했습니다.</p>
 
             <p className="mt-1 text-sm text-slate-500">
-              로그인 사용자: {loginUser.email || '이메일 정보 없음'}
+              로그인 사용자: {userEmail || '이메일 정보 없음'}
             </p>
           </div>
 
@@ -172,11 +119,7 @@ export default function DashboardPage() {
             {menuGroups.map((group, groupIndex) => (
               <div key={groupIndex} className="space-y-4">
                 {group.map((item) => (
-                  <DashboardCard
-                    key={item.href}
-                    item={item}
-                    onMove={handleDashboardMenuClick}
-                  />
+                  <DashboardCard key={item.href} item={item} />
                 ))}
               </div>
             ))}
@@ -187,22 +130,10 @@ export default function DashboardPage() {
   )
 }
 
-function DashboardCard({
-  item,
-  onMove,
-}: {
-  item: DashboardMenuItem
-  onMove: (item: DashboardMenuItem) => Promise<void>
-}) {
-  const handleClick = async (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault()
-    await onMove(item)
-  }
-
+function DashboardCard({ item }: { item: DashboardMenuItem }) {
   return (
     <Link
       href={item.href}
-      onClick={handleClick}
       className={`block rounded-2xl border p-6 shadow-sm transition ${item.colorClass}`}
     >
       <h2 className={`text-lg font-semibold ${item.titleClass}`}>
@@ -214,16 +145,4 @@ function DashboardCard({
       </p>
     </Link>
   )
-}
-
-function getDefaultNameFromEmail(email: string) {
-  if (!email) return '사용자'
-
-  const id = email.split('@')[0]
-
-  if (!id) return '사용자'
-
-  if (id.toLowerCase() === 'admin') return '관리자'
-
-  return id
 }
